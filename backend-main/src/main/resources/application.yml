@@ -1,22 +1,30 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 spring:
   application:
     name: backend-main
   datasource:
-    url: jdbc:postgresql://localhost:5432/mystudyapp
-    username: admin
-    password: password
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:mystudyapp}
+    username: ${POSTGRES_USER:admin}
+    password: ${POSTGRES_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
     properties:
       "[hibernate.format_sql]": true
 
-# Custom MQTT properties
+# JWT
+jwt:
+  secret: ${JWT_SECRET:changeme-changeme-changeme-changeme-changeme-changeme-chang}
+  access:
+    expiration-ms: 900000
+  refresh:
+    expiration-ms: 604800000
+
+# MQTT
 mqtt:
   broker-url: tcp://localhost:1883
   client-id: backend-main-subscriber
