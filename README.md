@@ -1,154 +1,388 @@
-# Campus Event App — Product Specification
+# MyStudyApp
 
-## 1. App Identity & Purpose
-
-A **university-exclusive event platform** where verified students can discover, host, and attend campus events. The app solves three core campus problems:
-
-- **Admin Bottleneck**: Manual approval for every event overwhelms admins. Solved via a **Trust Level** system.
-- **Overcrowding & Ghosting**: Events get too full, or people RSVP and don't show. Solved via **capacity limits + waitlists + attendance tracking**.
-- **Safety & Moderation**: Students need a way to report suspicious events and review hosts. Solved via a **post-event review + pre-event reporting** system.
+A **university-exclusive event platform** where verified students can discover, host, and attend campus events. Built as a Maven multi-module project with Spring Boot 3 Modulith backends, a React 18 PWA frontend, and real-time MQTT messaging.
 
 ---
 
-## 2. Core Feature Modules
+## Table of Contents
 
-### 2.1 Identity & Profile (Authentication & Trust)
-
-| Feature | Description |
-|---------|-------------|
-| **Campus Verification** | Sign-up requires a university email (`university_email`). This gates the platform to actual students. |
-| **Roles** | `STUDENT` (default) and `ADMIN` (moderation privileges). |
-| **Trust Levels** | `NEW` → `TRUSTED_HOST` → `FLAGGED`. After hosting **3 well-reviewed events**, a student auto-promotes to `TRUSTED_HOST`. |
-| **Profile** | Display name, bio, event history, and trust badge visible to other users. |
-
-**Why this matters**: Trusted hosts bypass manual admin review, allowing the platform to scale without creating an approval backlog.
-
----
-
-### 2.2 Event Catalog (Discovery & Creation)
-
-| Feature | Description |
-|---------|-------------|
-| **Event Creation** | Hosts set title, description, location, start/end time, and `max_capacity`. |
-| **Auto-Publish vs. Review** | `TRUSTED_HOST` events go straight to `PUBLISHED`. `NEW` host events enter `UNDER_REVIEW` for admin approval. |
-| **Categories** | Events tagged via `event_categories` join table (e.g., "Study Group", "Nightlife", "Sports"). |
-| **RSVP Count Caching** | `current_rsvp_count` is denormalized on the `events` table so the feed loads fast without counting the RSVPs table on every scroll. |
-| **Event Status Lifecycle** | `PUBLISHED` → `CANCELLED` (by host) or `UNDER_REVIEW` (if flagged). |
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+- [Project Structure](#project-structure)
+- [Core Features](#core-features)
+- [Design Patterns](#design-patterns)
+- [API Reference](#api-reference)
+- [MQTT Topics](#mqtt-topics)
+- [Frontend](#frontend)
+- [Testing](#testing)
+- [Environment Variables](#environment-variables)
 
 ---
 
-### 2.3 Registration & Waitlist (Attendance Management)
+## Overview
 
-| Feature | Description |
-|---------|-------------|
-| **RSVP Status** | `GOING`, `WAITLISTED`, `CANCELLED`, `ATTENDED`. |
-| **Automatic Waitlist Promotion** | If someone cancels and a spot opens, the next `WAITLISTED` user is automatically moved to `GOING`. |
-| **Attendance Tracking** | Hosts (or the system) mark users as `ATTENDED` post-event. This feeds into the trust algorithm. |
-| **Capacity Enforcement** | No event exceeds `max_capacity`. |
+MyStudyApp solves three core campus problems:
 
-**Ghosting solution**: Attendance tracking + waitlists ensure only committed attendees take spots.
-
----
-
-### 2.4 Moderation & Feedback (Safety Loop)
-
-| Feature | Description |
-|---------|-------------|
-| **Post-Event Reviews** | Attendees leave a 1-5 `rating` + `comment`. These reviews determine host trust promotion. |
-| **Event Reporting** | Any user can report an event for `SPAM`, `INAPPROPRIATE`, `FAKE_EVENT`, or `OTHER`. |
-| **Admin Report Queue** | Reports have `OPEN` / `RESOLVED` status. Admins filter by reason type to prioritize. |
-| **Real-Time Alerts** | MQTT broker (`mosquitto.conf`) pushes real-time notifications to admins when critical reports are filed. |
+| Problem | Solution |
+|---|---|
+| **Admin Bottleneck** — manual approval for every event overwhelms admins | **Trust Level system**: verified hosts with 3+ good reviews auto-publish without admin review |
+| **Overcrowding & Ghosting** — RSVPs not honoured, events over-subscribed | **Capacity limits + automatic waitlist promotion + attendance tracking** |
+| **Safety & Moderation** — suspicious events and bad actors | **Pre-event reporting + post-event reviews + real-time admin alerts via MQTT** |
 
 ---
 
-## 3. Architecture & Folder Structure
-
-Your repo follows a **modular polyrepo-in-one** structure with clear separation of concerns:
+## Architecture
 
 ```
 mystudyapp/
-├── backend-main/          # Core business logic (Spring Boot)
-├── backend-asta/          # Secondary service (likely real-time/notification or ASTA-specific logic)
-├── frontend/              # React + Vite SPA (PWA-ready)
-├── docs/                  # API specs, architecture decisions, design patterns
-├── docker-compose.yml     # Orchestrates backend services + MQTT + DB
-└── mosquitto.conf         # MQTT broker config for real-time admin alerts
+├── backend-main/      # Core REST API — Spring Boot Modulith (port 8080)
+├── backend-asta/      # AStA Event Publisher — MQTT producer (port 8081)
+├── frontend/          # React 18 PWA — Vite + TanStack Query + Zustand
+├── docs/              # Architecture decisions, API reference, design patterns
+├── docker-compose.yml # Spins up PostgreSQL + Mosquitto MQTT broker
+└── mosquitto.conf     # MQTT broker config (port 1883, anonymous access)
 ```
 
-### 3.1 Backend — `backend-main`
+**Distribution flow:**
 
-The primary Spring Boot service handling:
-- REST API for events, users, RSVPs, reviews, reports
-- Database migrations (see `resources/db/`)
-- Profile-specific configs (`application-dev.yml`, `application-prod.yml`)
-
-### 3.2 Backend — `backend-asta`
-
-Likely a **satellite microservice** (possibly handling asynchronous tasks, real-time messaging, or an external integration). The name "asta" might refer to a specific domain (e.g., "Async Service for Task Automation") or a university-specific module.
-
-### 3.3 Frontend — `frontend/`
-
-A modern React SPA built with Vite:
-
-| Directory | Purpose |
-|-----------|---------|
-| `src/api/` | API clients per domain (`eventsApi.js`, `rsvpApi.js`, etc.) |
-| `src/components/` | **Atomic Design** structure: atoms → molecules → organisms → templates |
-| `src/hooks/` | Custom React Query hooks (`useEvents`, `useInfiniteEvents`, `useRsvp`, `useAuth`) |
-| `src/stores/` | Global state (`authStore`, `uiStore`) |
-| `src/pages/` | Route-level pages: `Home`, `Events`, `Auth`, `Profile`, `Admin`, `Error` |
-| `src/design-system/` | Theme tokens, breakpoints, animations, CSS variables |
-| `src/lib/` | Axios instance, i18n config, React Query client |
-| `public/` | PWA assets: `manifest.json`, service worker, icons |
-
-**PWA Features**: Offline capability, installable on mobile, push notifications via service worker.
+```
+AStA System (backend-asta)
+        │
+        │  MQTT  topic: university/events
+        ▼
+  Mosquitto Broker
+        │
+        ▼
+backend-main (OfficialEventListener)
+        │
+        ├── Adapter  →  OfficialEventAdapter translates AStA JSON → Event entity
+        └── Factory  →  EventFactory builds the Event and persists it
+```
 
 ---
 
-## 4. User Flows
+## Tech Stack
 
-### 4.1 Student Journey
+### Backend (`backend-main` + `backend-asta`)
 
-1. **Sign Up** → Verify university email → Profile created (`trust_level: NEW`)
-2. **Browse Feed** → Infinite scroll of `PUBLISHED` events (`useInfiniteEvents`)
-3. **Filter** → By category, date, or location
-4. **RSVP** → If capacity full, auto-join `WAITLIST`
-5. **Attend Event** → Host marks attendance → Student becomes eligible to review
-6. **Review Host** → 1-5 rating + comment → Host's trust score updates
-7. **Host Event** (after 3 good reviews) → Auto-publishes without admin wait
+| Layer | Technology |
+|---|---|
+| Framework | Spring Boot 3, Spring Modulith |
+| Security | Spring Security, JWT (Bearer tokens), BCrypt |
+| Persistence | PostgreSQL (prod), H2 (dev), Flyway migrations |
+| Messaging | MQTT via Eclipse Paho + Spring Integration |
+| Mapping | MapStruct (compile-time DTO ↔ Entity) |
+| API Docs | SpringDoc OpenAPI (Swagger UI at `/api-docs`) |
+| Build | Maven multi-module |
 
-### 4.2 Admin Journey
+### Frontend
 
-1. **Dashboard** → View `UNDER_REVIEW` events and `OPEN` reports
-2. **Moderate** → Approve/reject events, resolve reports
-3. **Real-Time Alerts** → MQTT pushes new report notifications instantly
-4. **User Management** → Flag problematic users (`trust_level: FLAGGED`)
-
----
-
-## 5. Key Technical Decisions
-
-| Decision | Rationale |
-|----------|-----------|
-| **UUID Primary Keys** | Prevents enumeration attacks; fits distributed microservices. |
-| **Denormalized `current_rsvp_count`** | Read optimization for high-traffic event feeds. |
-| **No `PENDING` status** | Simplified state machine: `UNDER_REVIEW` for new hosts, `PUBLISHED` for trusted ones. |
-| **Enum-based Reports** | Faster admin filtering than free-text search. |
-| **MQTT (Mosquitto)** | Lightweight pub/sub for real-time moderation alerts without heavy WebSocket overhead. |
-| **Atomic Design Frontend** | Scalable component architecture as features grow. |
+| Layer | Technology |
+|---|---|
+| Framework | React 18, Vite |
+| Server state | TanStack Query (React Query v5) |
+| Client state | Zustand |
+| Forms | React Hook Form + Zod |
+| HTTP | Axios (JWT interceptor, auto-logout on 401) |
+| PWA | Vite PWA Plugin, Service Worker (stale-while-revalidate) |
 
 ---
 
-## 6. What You Should Build Next
+## Getting Started
 
-Based on this spec, your development priorities should be:
+### Prerequisites
 
-1. **Auth & Verification** — University email validation + JWT sessions
-2. **Event CRUD + Feed** — Create event, category filtering, infinite scroll
-3. **RSVP + Waitlist Engine** — Transaction-safe RSVP with automatic waitlist promotion
-4. **Trust Algorithm** — Background job that checks if a host has 3+ positive reviews and auto-promotes them
-5. **Admin Moderation UI** — Report queue, event approval workflow
-6. **PWA Polish** — Service worker caching, offline read-only event browsing
-7. **Real-Time Layer** — Wire up MQTT for admin notifications on new reports
+- Java 21+
+- Node.js 20+
+- Docker & Docker Compose
 
-This architecture gives you a **scalable, trust-based campus platform** that reduces admin overhead while keeping events safe and well-attended.
+### 1. Start infrastructure (database + MQTT broker)
+
+```bash
+docker-compose up -d
+```
+
+This starts:
+- **PostgreSQL** — application database
+- **Mosquitto** — MQTT broker on port `1883`
+
+### 2. Run the main backend
+
+```bash
+cd backend-main
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
+```
+
+The dev profile uses an **H2 in-memory database** — no Docker required for local development. The API is available at `http://localhost:8080`. Swagger UI is at `http://localhost:8080/api-docs`.
+
+### 3. Run the AStA publisher (optional)
+
+```bash
+cd backend-asta
+mvn spring-boot:run
+```
+
+The AStA service starts on port `8081` and exposes a demo endpoint for publishing official university events via MQTT.
+
+### 4. Run the frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The dev server starts at `http://localhost:5173` and proxies `/api` requests to `:8080`.
+
+---
+
+## Project Structure
+
+### `backend-main` — Spring Boot Modulith
+
+The core service is organized by **vertical slice** (module = domain):
+
+| Module | Responsibility | Key Endpoints |
+|---|---|---|
+| `identity` | Auth, user profiles, trust levels | `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/users/me` |
+| `events` | Event catalog, creation, discovery | `GET /api/events`, `POST /api/events`, `GET /api/events/{id}` |
+| `registration` | RSVP, waitlist, attendance | `POST /api/rsvps`, `DELETE /api/rsvps/{id}`, `GET /api/events/{id}/attendees` |
+| `moderation` | Reviews, reports, admin queue | `POST /api/reviews`, `POST /api/reports`, `GET /api/admin/reports` |
+| `mqtt` | MQTT subscriber, AStA event ingestion | — (internal listener) |
+| `common` | Shared config, exceptions, JWT | — (cross-cutting) |
+
+### `backend-asta` — AStA Event Publisher
+
+A lightweight microservice that serialises AStA event data and publishes it to the `university/events` MQTT topic. Intended as the integration point for the university's official event system.
+
+### `frontend` — React PWA
+
+Follows **Atomic Design**:
+
+```
+components/
+├── atoms/       # Button, Input, Badge, Avatar, Skeleton, Spinner
+├── molecules/   # EventCard, SearchBar, CategoryChip, RatingStars, Toast
+├── organisms/   # Navbar, EventFeed, EventForm, ReviewSection, AdminReportTable
+└── templates/   # PageLayout, AuthLayout, AdminLayout, ErrorBoundary
+```
+
+---
+
+## Core Features
+
+### Trust Level System
+
+Students start at `NEW` and auto-promote to `TRUSTED_HOST` after hosting **3 well-reviewed events**.
+
+```
+NEW  ──→  TRUSTED_HOST  (3+ positive reviews, automatic)
+ │
+ └──→  FLAGGED          (admin action)
+```
+
+- `NEW` hosts: events enter `UNDER_REVIEW` for admin approval
+- `TRUSTED_HOST` hosts: events publish immediately
+- `FLAGGED` hosts: blocked from creating events
+
+### Event Lifecycle
+
+```
+POST /api/events
+       │
+       ├── TRUSTED_HOST  →  PUBLISHED  (live immediately)
+       └── NEW host      →  UNDER_REVIEW  (awaits admin approval)
+                                │
+                                ├── Admin approves  →  PUBLISHED
+                                └── Admin rejects   →  CANCELLED
+```
+
+### RSVP & Waitlist
+
+```
+POST /api/rsvps
+       │
+       ├── Capacity available  →  GOING
+       └── Event full          →  WAITLISTED
+                                      │
+                            Someone cancels their RSVP
+                                      │
+                            WaitlistPromotionListener fires
+                                      │
+                            Next WAITLISTED user → GOING
+```
+
+### Post-Event Flow
+
+1. Host marks attendees → status `ATTENDED`
+2. Attended users unlock the ability to leave a review (1–5 stars + comment)
+3. After 3 qualifying reviews, `TrustLevelService` auto-promotes the host
+
+---
+
+## Design Patterns
+
+Three Gang-of-Four patterns are explicitly implemented (documented in `docs/design-patterns.md`):
+
+| Pattern | Category | Location | Purpose |
+|---|---|---|---|
+| **Factory** | Creational | `events/factory/EventFactory.java` | Builds an `Event` from either a `CreateEventRequest` (REST) or an `OfficialEventMessage` (MQTT) — service layer stays clean |
+| **Adapter** | Structural | `mqtt/adapter/OfficialEventAdapter.java` | Translates AStA JSON fields (`activity_name`, `time`, `venue`) into the internal `Event` format; the `EventMessageTarget` interface keeps it swappable |
+| **Observer** | Behavioral | `registration/observer/` | `RsvpEventPublisher` fires a Spring `ApplicationEvent` on RSVP cancellation; `WaitlistPromotionListener` reacts automatically — no direct coupling between cancellation and promotion logic |
+
+---
+
+## API Reference
+
+Full OpenAPI specification is available at `http://localhost:8080/api-docs` when running in dev mode.
+
+### Authentication
+
+All protected endpoints require a `Bearer` token in the `Authorization` header:
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+Obtain a token via `POST /api/auth/login`.
+
+### Key Endpoints
+
+```
+# Identity
+POST   /api/auth/register
+POST   /api/auth/login
+GET    /api/users/me
+GET    /api/users/{id}
+
+# Events
+GET    /api/events              ?page=0&size=20&category=&status=PUBLISHED
+POST   /api/events
+GET    /api/events/{id}
+PATCH  /api/events/{id}
+DELETE /api/events/{id}
+GET    /api/categories
+
+# RSVP
+POST   /api/rsvps
+DELETE /api/rsvps/{id}
+GET    /api/events/{id}/attendees
+
+# Reviews & Reports
+POST   /api/reviews
+GET    /api/events/{id}/reviews
+POST   /api/reports
+
+# Admin (requires ADMIN role)
+GET    /api/admin/reports
+PATCH  /api/admin/reports/{id}/resolve
+
+# AStA Publisher (backend-asta)
+POST   /api/asta/publish-event
+```
+
+---
+
+## MQTT Topics
+
+| Topic | Direction | Publisher | Consumer | Payload |
+|---|---|---|---|---|
+| `university/events` | → | `backend-asta` | `backend-main` | `{ activity_name, time, venue, organiser }` |
+
+The broker runs on port `1883` (configured in `mosquitto.conf`). QoS level 1 is used for event messages to guarantee at-least-once delivery.
+
+---
+
+## Frontend
+
+### PWA
+
+The app is installable on mobile and desktop. Offline mode provides read-only access to previously loaded events via the service worker's stale-while-revalidate strategy.
+
+### State Management
+
+| Store | Contents |
+|---|---|
+| `authStore` (Zustand) | JWT token, decoded user, persisted to `localStorage` |
+| `uiStore` (Zustand) | Dark/light theme, toast queue, mobile nav state |
+| TanStack Query | All server data — events, RSVPs, reviews, reports |
+
+### Key Hooks
+
+| Hook | Purpose |
+|---|---|
+| `useAuth` | Reads `authStore`, exposes `user`, `login`, `logout` |
+| `useInfiniteEvents` | Cursor-based infinite scroll for the event feed |
+| `useRsvp` | RSVP mutation with optimistic UI update |
+| `useToast` | Dispatches to the `uiStore` toast queue |
+| `useDebounce` | Debounces search input before firing a query |
+
+---
+
+## Testing
+
+```bash
+# Run all backend tests
+mvn test
+
+# Run a specific module
+mvn test -pl backend-main
+
+# Run frontend lint + type checks
+cd frontend && npm run lint
+```
+
+### Test Coverage
+
+| Test | Type | What it verifies |
+|---|---|---|
+| `UserServiceTest` | Unit | Registration, login, duplicate email rejection |
+| `EventServiceTest` | Unit | Trust-level-based publish vs. review routing |
+| `EventFactoryTest` | Unit | Factory pattern — both REST and MQTT input paths |
+| `RsvpServiceTest` | Unit | Capacity enforcement, GOING vs. WAITLISTED assignment |
+| `WaitlistPromotionTest` | Integration | Observer fires and promotes the next waitlisted user |
+| `ReportServiceTest` | Unit | Auto-flag event after N reports |
+| `OfficialEventAdapterTest` | Unit | Adapter pattern — AStA JSON → Event field mapping |
+
+---
+
+## Environment Variables
+
+### Backend (`application.yml`)
+
+| Variable | Description | Default (dev) |
+|---|---|---|
+| `spring.datasource.url` | PostgreSQL JDBC URL | H2 in-memory |
+| `spring.datasource.username` | DB username | `sa` |
+| `spring.datasource.password` | DB password | _(empty)_ |
+| `mqtt.broker` | Mosquitto broker URL | `tcp://localhost:1883` |
+| `mqtt.topic` | Subscription topic | `university/events` |
+| `jwt.secret` | HMAC signing secret | _(set in prod)_ |
+| `jwt.expiration` | Token TTL in ms | `86400000` (24 h) |
+
+### Frontend (`.env`)
+
+Copy `.env.example` to `.env.local` and fill in:
+
+```bash
+VITE_API_URL=http://localhost:8080
+VITE_MQTT_URL=ws://localhost:9001
+```
+
+---
+
+## Docs
+
+| File | Contents |
+|---|---|
+| `docs/architecture.md` | Distribution diagram description + MQTT message flow |
+| `docs/api.md` | REST endpoint reference with request/response examples |
+| `docs/design-patterns.md` | Factory · Adapter · Observer — motivation, UML, and code walkthrough |
+
+---
+
+## License
+
+This project was developed as part of a university practical course (Praktikum) at **FH Dortmund**.
