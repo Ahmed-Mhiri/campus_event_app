@@ -7,6 +7,6 @@ spring:
 
 # Custom MQTT properties
 mqtt:
-  broker-url: tcp://localhost:1883
+  broker-url: tcp://${MQTT_HOST:localhost}:1883
   client-id: backend-asta-publisher
   default-topic: mystudyapp/events

@@ -36,3 +36,4 @@ build/
 *.swp
 *.swo
 *~
+.fake

@@ -1,7 +1,10 @@
-server:
-  port: ${SERVER_PORT:8081}
-
 spring:
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 2MB
+      max-request-size: 2MB
+  
   application:
     name: backend-main
   profiles:
@@ -31,3 +34,11 @@ mqtt:
   broker-url: tcp://${MQTT_HOST:localhost}:1883
   client-id: backend-main-subscriber
   default-topic: mystudyapp/events
+
+# Application Storage Configuration
+app:
+  storage:
+    avatar-location: uploads/avatars
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  mail:
+    from: ${MAIL_FROM:noreply@mystudyapp.de}

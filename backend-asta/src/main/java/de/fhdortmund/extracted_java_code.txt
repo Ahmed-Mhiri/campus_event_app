@@ -1,0 +1,207 @@
+﻿==== backend_asta\BackendAstaApplication.java ====
+package de.fhdortmund.backend_asta;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class BackendAstaApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(BackendAstaApplication.class, args);
+	}
+
+}
+
+
+==== mystudyapp\asta\AstaApplication.java ====
+package de.fhdortmund.mystudyapp.asta;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.integration.annotation.IntegrationComponentScan;
+
+@SpringBootApplication
+@IntegrationComponentScan
+public class AstaApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(AstaApplication.class, args);
+    }
+}
+
+
+==== mystudyapp\asta\controller\AstaController.java ====
+package de.fhdortmund.mystudyapp.asta.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import de.fhdortmund.mystudyapp.asta.dto.AstaEventRequest;
+import de.fhdortmund.mystudyapp.asta.service.AstaPublisherService;
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/asta")
+@RequiredArgsConstructor
+public class AstaController {
+
+    private final AstaPublisherService publisherService;
+
+    @PostMapping("/publish-event")
+    public ResponseEntity<String> publishEvent(@RequestBody AstaEventRequest request) {
+        publisherService.publishOfficialEvent(request);
+        return ResponseEntity.ok("Event published to MQTT broker");
+    }
+}
+
+
+==== mystudyapp\asta\dto\AstaEventRequest.java ====
+package de.fhdortmund.mystudyapp.asta.dto;
+
+import lombok.Data;
+
+@Data
+public class AstaEventRequest {
+    private String activityName;
+    private String time;
+    private String venue;
+    private String organiser;
+}
+
+
+==== mystudyapp\asta\mqtt\MqttPublisherConfig.java ====
+package de.fhdortmund.mystudyapp.asta.mqtt;
+
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.integration.annotation.ServiceActivator;
+import org.springframework.integration.channel.DirectChannel;
+import org.springframework.integration.core.MessageProducer;
+import org.springframework.integration.mqtt.core.DefaultMqttPahoClientFactory;
+import org.springframework.integration.mqtt.inbound.MqttPahoMessageDrivenChannelAdapter;
+import org.springframework.integration.mqtt.outbound.MqttPahoMessageHandler;
+import org.springframework.integration.mqtt.support.DefaultPahoMessageConverter;
+import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.MessageHandler;
+
+@Configuration
+public class MqttPublisherConfig {
+
+    @Value("${mqtt.broker-url:tcp://localhost:1883}")
+    private String brokerUrl;
+
+    @Value("${mqtt.client-id:asta-publisher}")
+    private String clientId;
+
+    @Value("${mqtt.topic.events:university/events}")
+    private String eventsTopic;
+
+    @Value("${mqtt.topic.alerts:university/alerts}")
+    private String alertsTopic;
+
+    /* ==================== OUTBOUND: Publish Events ==================== */
+
+    @Bean
+    public DefaultMqttPahoClientFactory mqttClientFactory() {
+        DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
+        MqttConnectOptions options = new MqttConnectOptions();
+        options.setServerURIs(new String[]{brokerUrl});
+        options.setCleanSession(true);
+        options.setAutomaticReconnect(true);
+        factory.setConnectionOptions(options);
+        return factory;
+    }
+
+    @Bean
+    @ServiceActivator(inputChannel = "mqttOutboundChannel")
+    public MessageHandler mqttOutboundHandler() {
+        MqttPahoMessageHandler handler = new MqttPahoMessageHandler(clientId, mqttClientFactory());
+        handler.setAsync(true);
+        handler.setDefaultTopic(eventsTopic);
+        handler.setDefaultQos(1); // At-least-once delivery
+        return handler;
+    }
+
+    @Bean
+    public MessageChannel mqttOutboundChannel() {
+        return new DirectChannel();
+    }
+
+    /* ==================== INBOUND: Receive Alerts ==================== */
+
+    @Bean
+    public MessageChannel mqttAlertInputChannel() {
+        return new DirectChannel();
+    }
+
+    @Bean
+    public MessageProducer mqttAlertInboundAdapter() {
+        MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter(
+                clientId + "-alerts",
+                mqttClientFactory(),
+                alertsTopic
+        );
+        adapter.setCompletionTimeout(5000);
+        adapter.setConverter(new DefaultPahoMessageConverter());
+        adapter.setQos(1);
+        adapter.setOutputChannel(mqttAlertInputChannel());
+        return adapter;
+    }
+
+    @Bean
+    @ServiceActivator(inputChannel = "mqttAlertInputChannel")
+    public MessageHandler alertHandler() {
+        return message -> {
+            String payload = message.getPayload().toString();
+            System.out.println("[AStA BACKEND] ðŸš¨ Critical Alert Received: " + payload);
+            // In production: send email to AStA admins, push to Slack, etc.
+        };
+    }
+}
+
+
+==== mystudyapp\asta\service\AstaPublisherService.java ====
+package de.fhdortmund.mystudyapp.asta.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import de.fhdortmund.mystudyapp.asta.dto.AstaEventRequest;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.integration.annotation.MessagingGateway;
+import org.springframework.integration.annotation.ServiceActivator;
+import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.stereotype.Service;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AstaPublisherService {
+
+    private final MqttGateway mqttGateway;
+    private final ObjectMapper objectMapper;
+
+    @MessagingGateway(defaultRequestChannel = "mqttOutboundChannel")
+    public interface MqttGateway {
+        void sendToMqtt(String data);
+    }
+
+    public void publishOfficialEvent(AstaEventRequest request) {
+        try {
+            String payload = objectMapper.writeValueAsString(request);
+            mqttGateway.sendToMqtt(payload);
+            log.info("Published official event to MQTT: {}", request.getActivityName());
+        } catch (Exception e) {
+            log.error("Failed to publish event to MQTT", e);
+            throw new RuntimeException("Failed to publish event", e);
+        }
+    }
+}
+
+
