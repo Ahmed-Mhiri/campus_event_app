@@ -10,6 +10,9 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import de.fhdortmund.mystudyapp.common.response.ApiResponse;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,6 +35,11 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     );
 
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+    private final ObjectMapper objectMapper;
+
+    public RateLimitingFilter(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -53,9 +61,14 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             bucket.clean();
             if (bucket.count() >= bucket.getMaxRequests()) {
                 log.warn("Rate limit exceeded for {} on {}", clientKey, path);
+                
+                // FIXED: Return consistent ApiResponse<Void> envelope instead of raw JSON
+                ApiResponse<Void> errorResponse = ApiResponse.error("Too many requests. Please try again later.");
+                String jsonBody = objectMapper.writeValueAsString(errorResponse);
+                
                 response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                response.getWriter().write("{\"error\":\"Too many requests. Please try again later.\"}");
+                response.getWriter().write(jsonBody);
                 return;
             }
             bucket.add();
