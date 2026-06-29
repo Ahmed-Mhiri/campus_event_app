@@ -1,0 +1,51 @@
+// src/constants/enums.ts
+
+export enum EventStatus {
+  DRAFT = 'DRAFT',
+  PUBLISHED = 'PUBLISHED',
+  UNDER_REVIEW = 'UNDER_REVIEW',
+  CANCELLED = 'CANCELLED',
+  COMPLETED = 'COMPLETED',
+}
+
+export enum RsvpStatus {
+  GOING = 'GOING',
+  WAITLISTED = 'WAITLISTED',
+  CANCELLED = 'CANCELLED',
+  ATTENDED = 'ATTENDED',
+}
+
+export enum TrustLevel {
+  NEW = 'NEW',
+  TRUSTED_HOST = 'TRUSTED_HOST',
+  FLAGGED = 'FLAGGED',
+}
+
+export enum Role {
+  STUDENT = 'STUDENT',
+  ADMIN = 'ADMIN',
+}
+
+export enum ReportReason {
+  SPAM = 'SPAM',
+  INAPPROPRIATE = 'INAPPROPRIATE',
+  FAKE_EVENT = 'FAKE_EVENT',
+  OTHER = 'OTHER',
+}
+
+// ✅ ADDED – was missing
+export enum ReportStatus {
+  OPEN = 'OPEN',
+  RESOLVED = 'RESOLVED',
+}
+
+export enum NotificationType {
+  EVENT_APPROVED = 'EVENT_APPROVED',
+  EVENT_REJECTED = 'EVENT_REJECTED',
+  WAITLIST_PROMOTED = 'WAITLIST_PROMOTED',
+  NEW_REVIEW = 'NEW_REVIEW',
+  TRUST_PROMOTED = 'TRUST_PROMOTED',
+  EVENT_CANCELLED = 'EVENT_CANCELLED',
+  RSVP_CANCELLED = 'RSVP_CANCELLED',
+  REPORT_RESOLVED = 'REPORT_RESOLVED',
+}
