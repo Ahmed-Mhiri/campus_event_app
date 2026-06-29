@@ -1,1 +1,0 @@
-export const EmptyState: React.FC<{ title: string; description?: string; action?: React.ReactNode }> = ({ title, description, action }) => <div><h3>{title}</h3>{description && <p>{description}</p>}{action}</div>;

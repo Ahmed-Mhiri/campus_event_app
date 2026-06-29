@@ -1,19 +1,18 @@
-// src/pages/Events/EventsPage.tsx
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Container, Title, Stack, Group, Select, TextInput, Button, Box, Paper, Grid } from '@mantine/core';
-import { IconMapPin, IconSearch } from '@tabler/icons-react';
+import { Container, Stack, Group, Select, TextInput, Button, Paper, Grid, Badge } from '@mantine/core';
+import { IconMapPin, IconSearch, IconFilter, IconX } from '@tabler/icons-react';
 import { DatePickerInput } from '@mantine/dates';
-import { EventFeed } from '@/components/organisms/EventFeed/EventFeed';
 import { useCategories } from '@/hooks/useCategories';
-import { CategoryChip } from '@/components/molecules/CategoryChip/CategoryChip';
 import type { EventsFilters } from '@/hooks/useEvents';
+import { PageHeader } from '@/components/molecules/PageHeader';
+import { EventFeed } from '@/components/organisms/EventFeed';
+import { Text } from '@mantine/core';
 
 export function EventsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: categories } = useCategories();
 
-  // Initialize filters from URL params
   const [filters, setFilters] = useState<EventsFilters>(() => {
     const categoryId = searchParams.get('categoryId');
     const dateFrom = searchParams.get('dateFrom') || undefined;
@@ -32,7 +31,6 @@ export function EventsPage() {
     };
   });
 
-  // Local state for filter inputs – date range now stores strings (YYYY-MM-DD)
   const [searchQuery, setSearchQuery] = useState(filters.q || '');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
     filters.categoryId || null
@@ -43,7 +41,6 @@ export function EventsPage() {
   ]);
   const [locationFilter, setLocationFilter] = useState(filters.location || '');
 
-  // Update URL when filters change
   useEffect(() => {
     const params = new URLSearchParams();
     if (filters.categoryId) params.set('categoryId', String(filters.categoryId));
@@ -81,19 +78,32 @@ export function EventsPage() {
     { value: 'viewCount', label: 'Most Popular' },
   ];
 
-  // Handler now accepts strings (matches the DatePickerInput with valueFormat)
   const handleDateRangeChange = (value: [string | null, string | null]) => {
     setDateRange(value);
   };
 
+  const hasActiveFilters = Boolean(
+    selectedCategoryId || dateRange[0] || dateRange[1] || locationFilter || searchQuery
+  );
+
   return (
     <Container size="xl" py="xl">
       <Stack gap="lg">
-        <Title order={2}>All Events</Title>
+        <PageHeader title="All Events" subtitle="Discover and join campus events" />
 
         {/* Filter Bar */}
-        <Paper withBorder p="md" radius="md">
-          <Grid align="end">
+        <Paper
+          withBorder
+          p="lg"
+          radius="lg"
+          style={{
+            background: 'var(--app-surface)',
+            position: 'sticky',
+            top: 80,
+            zIndex: 10,
+          }}
+        >
+          <Grid align="end" gap="md">
             <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
               <TextInput
                 label="Search"
@@ -101,6 +111,7 @@ export function EventsPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.currentTarget.value)}
                 leftSection={<IconSearch size={16} />}
+                radius="md"
               />
             </Grid.Col>
 
@@ -112,6 +123,7 @@ export function EventsPage() {
                 value={selectedCategoryId ? String(selectedCategoryId) : null}
                 onChange={(val) => setSelectedCategoryId(val ? Number(val) : null)}
                 clearable
+                radius="md"
               />
             </Grid.Col>
 
@@ -122,8 +134,9 @@ export function EventsPage() {
                 placeholder="Pick dates"
                 value={dateRange}
                 onChange={handleDateRangeChange}
-                valueFormat="YYYY-MM-DD"   // ensures strings are used, matching the handler
+                valueFormat="YYYY-MM-DD"
                 clearable
+                radius="md"
               />
             </Grid.Col>
 
@@ -134,6 +147,7 @@ export function EventsPage() {
                 value={locationFilter}
                 onChange={(e) => setLocationFilter(e.currentTarget.value)}
                 leftSection={<IconMapPin size={16} />}
+                radius="md"
               />
             </Grid.Col>
 
@@ -143,27 +157,63 @@ export function EventsPage() {
                 data={sortOptions}
                 value={filters.sort || 'startTime'}
                 onChange={(val) => setFilters((prev) => ({ ...prev, sort: val || 'startTime' }))}
+                radius="md"
               />
             </Grid.Col>
 
             <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
               <Group gap="sm">
-                <Button onClick={applyFilters}>Apply</Button>
-                <Button variant="default" onClick={clearFilters}>Clear</Button>
+                <Button
+                  leftSection={<IconFilter size={16} />}
+                  onClick={applyFilters}
+                  radius="md"
+                >
+                  Apply Filters
+                </Button>
+                <Button
+                  variant="subtle"
+                  leftSection={<IconX size={16} />}
+                  onClick={clearFilters}
+                  radius="md"
+                >
+                  Clear
+                </Button>
               </Group>
             </Grid.Col>
           </Grid>
-        </Paper>
 
-        {/* Active category chip */}
-        {selectedCategoryId && categories?.find(c => c.id === selectedCategoryId) && (
-          <Box>
-            <CategoryChip
-              name={categories.find(c => c.id === selectedCategoryId)!.name}
-              color={categories.find(c => c.id === selectedCategoryId)!.color}
-            />
-          </Box>
-        )}
+          {/* Active filter chips */}
+          {hasActiveFilters && (
+            <Group gap="xs" mt="md">
+              <Text size="sm" c="dimmed">Active:</Text>
+              {searchQuery && (
+                <Badge variant="light" radius="md">
+                  Search: {searchQuery}
+                </Badge>
+              )}
+              {selectedCategoryId && categories?.find(c => c.id === selectedCategoryId) && (
+                <Badge variant="light" radius="md">
+                  {categories.find(c => c.id === selectedCategoryId)!.name}
+                </Badge>
+              )}
+              {locationFilter && (
+                <Badge variant="light" radius="md">
+                  Location: {locationFilter}
+                </Badge>
+              )}
+              {dateRange[0] && (
+                <Badge variant="light" radius="md">
+                  From: {dateRange[0]}
+                </Badge>
+              )}
+              {dateRange[1] && (
+                <Badge variant="light" radius="md">
+                  To: {dateRange[1]}
+                </Badge>
+              )}
+            </Group>
+          )}
+        </Paper>
 
         {/* Feed */}
         <EventFeed filters={filters} />

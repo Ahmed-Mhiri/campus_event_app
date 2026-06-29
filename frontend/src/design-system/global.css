@@ -1,0 +1,89 @@
+/* ===== CSS Custom Properties for light/dark ===== */
+:root {
+  --app-bg: #fafafa;
+  --app-surface: #ffffff;
+  --app-elevated: #ffffff;
+  --app-text: #111827;
+  --app-text-secondary: #6b7280;
+  --app-text-muted: #9ca3af;
+  --app-border: #e5e7eb;
+  --app-border-light: #f3f4f6;
+  --app-primary: #7c6ae6;
+  --app-primary-light: rgba(124, 106, 230, 0.1);
+}
+
+[data-mantine-color-scheme="dark"] {
+  --app-bg: #0f0f13;
+  --app-surface: #1a1a1f;
+  --app-elevated: #24242a;
+  --app-text: #f9fafb;
+  --app-text-secondary: #9ca3af;
+  --app-text-muted: #6b7280;
+  --app-border: #374151;
+  --app-border-light: #1f2937;
+  --app-primary: #a5a8f7;
+  --app-primary-light: rgba(165, 168, 247, 0.1);
+}
+
+/* ===== Smooth scrolling ===== */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== Selection color ===== */
+::selection {
+  background: rgba(124, 106, 230, 0.2);
+  color: inherit;
+}
+
+/* ===== Focus visible (accessibility) ===== */
+:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
+}
+
+/* ===== Scrollbar styling ===== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--app-text-muted);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--app-text-secondary);
+}
+
+/* ===== Reduced motion support ===== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ===== Utility classes ===== */
+.app-gradient-text {
+  background: linear-gradient(135deg, var(--app-primary) 0%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.app-surface {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+}
+
+.app-elevated {
+  background: var(--app-elevated);
+  border: 1px solid var(--app-border);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+}

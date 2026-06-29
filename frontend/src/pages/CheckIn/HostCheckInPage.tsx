@@ -12,8 +12,8 @@ import {
   Group,
 } from '@mantine/core';
 import { IconArrowLeft, IconQrcode } from '@tabler/icons-react';
-import { CheckInCodeDisplay } from '@/components/molecules/CheckInCodeDisplay/CheckInCodeDisplay';
-import { RsvpList } from '@/components/organisms/RsvpList/RsvpList';
+import { CheckInCodeDisplay } from '@/components/molecules/CheckInCodeDisplay';
+import { RsvpList } from '@/components/organisms/RsvpList';
 import { useEvent } from '@/hooks/useEvents';
 import { useAuth } from '@/hooks/useAuth';
 

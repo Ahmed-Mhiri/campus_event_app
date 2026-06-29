@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { adminApi } from '@/api/adminApi';
+import { reportsApi } from '@/api/reportsApi'; // 👈 new import
 import type { BulkEventActionRequest, CategoryRequest } from '@/types';
 
 export function useAdmin() {
@@ -141,7 +142,7 @@ export function useAdmin() {
     onSuccess: () => {
       notifications.show({
         title: 'Trust level updated',
-        message: 'The user\'s trust level has been changed.',
+        message: "The user's trust level has been changed.",
         color: 'green',
       });
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
@@ -262,6 +263,54 @@ export function useAdmin() {
     },
   });
 
+  // ----- Reports (NEW) -----
+  const useAdminReports = (params?: {
+    status?: string;
+    reason?: string;
+    page?: number;
+    size?: number;
+  }) => {
+    return useQuery({
+      queryKey: ['admin-reports', params],
+      queryFn: () => reportsApi.getReports(params).then((res) => res.data.data),
+      staleTime: 1000 * 60,
+    });
+  };
+
+  const resolveReportMutation = useMutation({
+    mutationFn: ({ reportId, flagEvent }: { reportId: string; flagEvent?: boolean }) =>
+      reportsApi.resolveReport(reportId, flagEvent),
+    onSuccess: () => {
+      notifications.show({
+        title: 'Report resolved',
+        message: 'The report has been resolved.',
+        color: 'green',
+      });
+      queryClient.invalidateQueries({ queryKey: ['admin-reports'] });
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.message || 'Failed to resolve report.';
+      notifications.show({ title: 'Error', message: msg, color: 'red' });
+    },
+  });
+
+  const deleteReportMutation = useMutation({
+    mutationFn: (reportId: string) => reportsApi.deleteReport(reportId),
+    onSuccess: () => {
+      notifications.show({
+        title: 'Report deleted',
+        message: 'The report has been removed.',
+        color: 'blue',
+      });
+      queryClient.invalidateQueries({ queryKey: ['admin-reports'] });
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.message || 'Failed to delete report.';
+      notifications.show({ title: 'Error', message: msg, color: 'red' });
+    },
+  });
+
+  // ----- Return everything -----
   return {
     // Dashboard
     useDashboard,
@@ -287,6 +336,13 @@ export function useAdmin() {
     createCategory: createCategoryMutation.mutateAsync,
     updateCategory: updateCategoryMutation.mutateAsync,
     deleteCategory: deleteCategoryMutation.mutateAsync,
+
+    // Reports
+    useAdminReports,
+    resolveReport: resolveReportMutation.mutateAsync,
+    deleteReport: deleteReportMutation.mutateAsync,
+    isResolving: resolveReportMutation.isPending,
+    isDeleting: deleteReportMutation.isPending,
 
     // Loading states
     isApproving: approveEventMutation.isPending,

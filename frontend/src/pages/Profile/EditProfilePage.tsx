@@ -1,11 +1,7 @@
-// src/pages/Profile/EditProfilePage.tsx
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Container,
   Paper,
-  Title,
   Stack,
   TextInput,
   Textarea,
@@ -14,11 +10,13 @@ import {
   Avatar,
   Group,
   Loader,
+  Container,
 } from '@mantine/core';
 import { IconUpload } from '@tabler/icons-react';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
 import { getAvatarUrl } from '@/utils/fileHelpers';
+import { PageHeader } from '@/components/molecules/PageHeader';
 
 export function EditProfilePage() {
   const navigate = useNavigate();
@@ -52,15 +50,13 @@ export function EditProfilePage() {
 
   if (!user) return <Loader />;
 
-  // Ensure avatar src is string | null | undefined
   const avatarSrc = avatarPreview || user.profileImageUrl || getAvatarUrl(user.id) || undefined;
 
   return (
     <Container size="sm" py="xl">
-      <Paper radius="md" p="xl" withBorder>
-        <Title order={2} mb="lg">
-          Edit Profile
-        </Title>
+      <PageHeader title="Edit Profile" />
+      
+      <Paper radius="lg" p="xl" withBorder>
         <form onSubmit={handleSubmit}>
           <Stack gap="md">
             <Group align="end">
@@ -69,6 +65,7 @@ export function EditProfilePage() {
                 size={80}
                 radius="xl"
                 alt="Avatar preview"
+                style={{ border: '3px solid var(--app-border)' }}
               />
               <FileInput
                 label="Profile Image"
@@ -77,6 +74,7 @@ export function EditProfilePage() {
                 onChange={handleFileChange}
                 leftSection={<IconUpload size={18} />}
                 style={{ flex: 1 }}
+                radius="md"
               />
             </Group>
 
@@ -87,6 +85,7 @@ export function EditProfilePage() {
               required
               minLength={2}
               maxLength={50}
+              radius="md"
             />
 
             <Textarea
@@ -97,13 +96,14 @@ export function EditProfilePage() {
               maxLength={500}
               autosize
               minRows={3}
+              radius="md"
             />
 
             <Group justify="flex-end" mt="md">
-              <Button variant="default" onClick={() => navigate(ROUTES.PROFILE)}>
+              <Button variant="default" onClick={() => navigate(ROUTES.PROFILE)} radius="md">
                 Cancel
               </Button>
-              <Button type="submit" loading={isUpdatingProfile}>
+              <Button type="submit" loading={isUpdatingProfile} radius="md">
                 Save Changes
               </Button>
             </Group>

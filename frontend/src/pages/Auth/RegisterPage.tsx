@@ -1,9 +1,6 @@
-// src/pages/Auth/RegisterPage.tsx
-
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Container,
   Paper,
   Title,
   TextInput,
@@ -44,7 +41,6 @@ export function RegisterPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate email format
     if (!EMAIL_REGEX.test(email)) {
       setEmailError('Please use a valid university email (.edu or .de)');
       return;
@@ -63,9 +59,18 @@ export function RegisterPage() {
   };
 
   return (
-    <Container size="xs" py="xl">
-      <Paper radius="md" p="xl" withBorder>
-        <Title order={2} ta="center" mb="lg">
+    <Box
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, var(--app-primary) 0%, #a855f7 100%)',
+        padding: '24px',
+      }}
+    >
+      <Paper radius="lg" p="xl" withBorder shadow="xl" maw={480} w="100%">
+        <Title order={2} ta="center" mb="lg" className="app-gradient-text">
           Create Account
         </Title>
         <form onSubmit={handleSubmit}>
@@ -78,6 +83,7 @@ export function RegisterPage() {
               required
               minLength={DISPLAY_NAME_MIN}
               maxLength={DISPLAY_NAME_MAX}
+              radius="md"
             />
             <TextInput
               label="University Email"
@@ -88,6 +94,7 @@ export function RegisterPage() {
               error={emailError}
               required
               type="email"
+              radius="md"
             />
             <PasswordInput
               label="Password"
@@ -95,10 +102,11 @@ export function RegisterPage() {
               value={password}
               onChange={(e) => setPassword(e.currentTarget.value)}
               required
+              radius="md"
             />
             {password && (
               <Box>
-                <Progress value={(passwordStrength / 4) * 100} color={strengthColor} size="sm" />
+                <Progress value={(passwordStrength / 4) * 100} color={strengthColor} size="sm" radius="xl" />
                 <Text size="xs" c={strengthColor} mt="xs">
                   {strengthLabel}
                 </Text>
@@ -114,8 +122,9 @@ export function RegisterPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.currentTarget.value)}
               required
+              radius="md"
             />
-            <Button type="submit" loading={isRegistering} fullWidth mt="sm">
+            <Button type="submit" loading={isRegistering} fullWidth mt="sm" radius="md">
               Register
             </Button>
           </Stack>
@@ -127,6 +136,6 @@ export function RegisterPage() {
           </Anchor>
         </Text>
       </Paper>
-    </Container>
+    </Box>
   );
 }

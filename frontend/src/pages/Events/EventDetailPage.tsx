@@ -1,4 +1,3 @@
-// src/pages/Events/EventDetailPage.tsx
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
@@ -22,6 +21,7 @@ import {
   Menu,
   Modal,
   Textarea,
+  ThemeIcon,
 } from '@mantine/core';
 import { Carousel } from '@mantine/carousel';
 import {
@@ -35,33 +35,48 @@ import {
   IconQrcode,
   IconDots,
   IconX,
-  IconFlag, // ✅ added for report
+  IconFlag,
+  IconShare,
 } from '@tabler/icons-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEvent } from '@/hooks/useEvents';
-import { useRsvp } from '@/hooks/useRsvp';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { eventsApi } from '@/api/eventsApi';
 import { ROUTES } from '@/constants/routes';
 import { formatDate } from '@/utils/dateFormatter';
 import { getAvatarUrl } from '@/utils/fileHelpers';
-import { UserTrustBadge } from '@/components/molecules/UserTrustBadge/UserTrustBadge';
-import { CapacityBar } from '@/components/molecules/CapacityBar/CapacityBar';
-import { ReviewSection } from '@/components/organisms/ReviewSection/ReviewSection';
-import { WaitlistBanner } from '@/components/organisms/WaitlistBanner/WaitlistBanner';
-import { ReportEventModal } from '@/components/molecules/ReportEventModal/ReportEventModal'; // ✅ import
+import { UserTrustBadge } from '@/components/molecules/UserTrustBadge';
+import { CapacityBar } from '@/components/molecules/CapacityBar';
+import { ReviewSection } from '@/components/organisms/ReviewSection';
+import { WaitlistBanner } from '@/components/organisms/WaitlistBanner';
+import { ReportEventModal } from '@/components/molecules/ReportEventModal';
+import { useRsvp } from '@/hooks/useRsvp';
+import { useAuthStore } from '@/stores/authStore';
+import { useEventSse } from '@/hooks/useEventSse';
 
 export function EventDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: event, isLoading, error } = useEvent(slug!, true);
+  const { isAuthenticated } = useAuthStore();
+
+  const { data: event, isLoading, error } = useQuery({
+    queryKey: ['event', slug],
+    queryFn: () => {
+      if (isAuthenticated) {
+        return eventsApi.getEventBySlug(slug!).then((res) => res.data.data);
+      } else {
+        return eventsApi.getPublicEventBySlug(slug!).then((res) => res.data.data);
+      }
+    },
+    enabled: !!slug,
+  });
+
+  useEventSse(event?.id);
 
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [reportModalOpen, setReportModalOpen] = useState(false); // ✅ report modal state
+  const [reportModalOpen, setReportModalOpen] = useState(false);
 
-  // RSVP state and hooks
   const { createRsvp, cancelRsvp, isCreating, isCancelling, useMyRsvpForEvent } = useRsvp(event?.id);
   const { data: myRsvp } = useMyRsvpForEvent(event?.id || '');
   const [cancelRsvpModalOpen, setCancelRsvpModalOpen] = useState(false);
@@ -125,14 +140,12 @@ export function EventDetailPage() {
   const isCompleted = status === 'COMPLETED';
   const isFull = currentRsvpCount >= maxCapacity;
 
-  // Determine if user can review
   const canReview = isCompleted && myRsvp?.status === 'ATTENDED' && !isHost;
 
   const coverImage = media?.find((m) => m.displayOrder === 0)?.url || media?.[0]?.url;
   const images = media?.filter((m) => m.mediaType === 'IMAGE') || [];
   const videos = media?.filter((m) => m.mediaType === 'VIDEO') || [];
 
-  // Fix avatar src: ensure it's string | null | undefined
   const hostAvatarSrc = host.profileImageUrl || getAvatarUrl(host.id) || undefined;
 
   const handleCancelRsvp = () => {
@@ -150,6 +163,7 @@ export function EventDetailPage() {
         variant="subtle"
         leftSection={<IconArrowLeft size={16} />}
         mb="md"
+        radius="md"
       >
         Back to events
       </Button>
@@ -169,7 +183,7 @@ export function EventDetailPage() {
                 </Group>
                 <Group gap="xs">
                   {categories.map((cat) => (
-                    <Badge key={cat.id} color={cat.color || 'gray'} variant="light">
+                    <Badge key={cat.id} color={cat.color || 'gray'} variant="light" radius="md">
                       {cat.name}
                     </Badge>
                   ))}
@@ -177,27 +191,40 @@ export function EventDetailPage() {
               </Stack>
               <Group gap={4}>
                 <IconEye size={16} />
-                <Text size="sm" c="dimmed">{viewCount}</Text>
+                <Text size="sm" c="dimmed">
+                  {viewCount}
+                </Text>
               </Group>
             </Group>
 
             {/* Host Info */}
-            <Paper withBorder p="md" radius="md">
+            <Paper withBorder p="md" radius="lg">
               <Group gap="md">
                 <Avatar
-                  src={hostAvatarSrc!= null ? String(hostAvatarSrc) : undefined}
+                  src={hostAvatarSrc != null ? String(hostAvatarSrc) : undefined}
                   size={56}
                   radius="xl"
                   alt={host.displayName}
                 />
                 <div style={{ flex: 1 }}>
                   <Group gap="xs">
-                    <Text fw={600} size="lg">{host.displayName}</Text>
+                    <Text
+                      component={Link}
+                      to={ROUTES.USER_PROFILE(host.id)}
+                      fw={600}
+                      size="lg"
+                      style={{ textDecoration: 'none', color: 'inherit' }}
+                    >
+                      {host.displayName}
+                    </Text>
                     <UserTrustBadge trustLevel={host.trustLevel} />
                   </Group>
                   <Group gap="sm">
                     <Text size="sm" c="dimmed">
-                      ⭐ {host.averageHostRating > 0 ? host.averageHostRating.toFixed(1) : 'No reviews yet'}
+                      ★{' '}
+                      {host.averageHostRating > 0
+                        ? host.averageHostRating.toFixed(1)
+                        : 'No reviews yet'}
                     </Text>
                     <Text size="sm" c="dimmed">
                       • {host.completedEventsWithReviews} events hosted
@@ -205,13 +232,14 @@ export function EventDetailPage() {
                   </Group>
                 </div>
                 <Group gap="xs">
-                  {!isHost && !isCancelled && (
+                  {!isHost && !isCancelled && isAuthenticated && (
                     <Button
                       variant="subtle"
                       color="red"
                       size="xs"
                       leftSection={<IconFlag size={14} />}
                       onClick={() => setReportModalOpen(true)}
+                      radius="md"
                     >
                       Report
                     </Button>
@@ -219,7 +247,7 @@ export function EventDetailPage() {
                   {isHost && (
                     <Menu position="bottom-end" withinPortal>
                       <Menu.Target>
-                        <Button variant="light" size="xs" leftSection={<IconDots size={14} />}>
+                        <Button variant="light" size="xs" leftSection={<IconDots size={14} />} radius="md">
                           Actions
                         </Button>
                       </Menu.Target>
@@ -268,7 +296,7 @@ export function EventDetailPage() {
                   <Image
                     src={coverImage}
                     alt={title}
-                    radius="md"
+                    radius="lg"
                     style={{ maxHeight: 400, objectFit: 'cover' }}
                   />
                 )}
@@ -315,15 +343,15 @@ export function EventDetailPage() {
 
             {/* Description */}
             {description && (
-              <Paper withBorder p="md" radius="md">
+              <Paper withBorder p="md" radius="lg">
                 <Text>{description}</Text>
               </Paper>
             )}
 
             {/* Reviews */}
-            <ReviewSection 
-              eventId={id} 
-              hostId={host.id} 
+            <ReviewSection
+              eventId={id}
+              hostId={host.id}
               canReview={canReview}
               onReviewSubmitted={() => {
                 queryClient.invalidateQueries({ queryKey: ['event', slug] });
@@ -334,91 +362,144 @@ export function EventDetailPage() {
 
         {/* Sidebar */}
         <Grid.Col span={{ base: 12, md: 4 }}>
-          <Stack gap="md">
-            <Paper withBorder p="md" radius="md">
-              <Stack gap="md">
-                <Group gap="xs">
-                  <IconCalendar size={18} />
+          <div style={{ position: 'sticky', top: 80 }}>
+            <Stack gap="md">
+              {/* Main action card */}
+              <Paper
+                withBorder
+                p="xl"
+                radius="lg"
+                style={{
+                  background: 'linear-gradient(135deg, var(--app-surface) 0%, var(--app-border-light) 100%)',
+                }}
+              >
+                <Stack gap="lg">
+                  <Group gap="md" align="flex-start">
+                    <ThemeIcon size={40} radius="md" color="brand" variant="light">
+                      <IconCalendar size={20} />
+                    </ThemeIcon>
+                    <div>
+                      <Text fw={600}>{formatDate(startTime)}</Text>
+                      <Text size="sm" c="dimmed">{formatDate(endTime)}</Text>
+                    </div>
+                  </Group>
+
+                  <Group gap="md" align="flex-start">
+                    <ThemeIcon size={40} radius="md" color="brand" variant="light">
+                      <IconMapPin size={20} />
+                    </ThemeIcon>
+                    <div>
+                      <Text fw={600}>{location}</Text>
+                      <Text size="sm" c="dimmed">Event Location</Text>
+                    </div>
+                  </Group>
+
+                  <Divider />
+
+                  <CapacityBar current={currentRsvpCount} max={maxCapacity} showLabels />
+
+                  <Group justify="space-between">
+                    <Group gap={4}>
+                      <IconUsers size={16} />
+                      <Text size="sm">
+                        {currentRsvpCount} / {maxCapacity} spots
+                      </Text>
+                    </Group>
+                    {isFull && <Badge color="orange">Full</Badge>}
+                  </Group>
+
+                  <Divider />
+
+                  {/* RSVP Button Section */}
+                  {!isHost && !isCancelled && !isCompleted && isAuthenticated ? (
+                    <>
+                      {myRsvpStatus === 'GOING' ? (
+                        <Button
+                          fullWidth
+                          color="red"
+                          variant="light"
+                          onClick={() => setCancelRsvpModalOpen(true)}
+                          loading={isCancelling}
+                          radius="md"
+                        >
+                          Cancel Registration
+                        </Button>
+                      ) : myRsvpStatus === 'WAITLISTED' ? (
+                        <>
+                          <Button fullWidth color="yellow" variant="light" disabled radius="md">
+                            Waitlisted
+                          </Button>
+                          {myRsvp && (
+                            <WaitlistBanner eventId={id} rsvpId={myRsvp.id} />
+                          )}
+                        </>
+                      ) : (
+                        <Button
+                          fullWidth
+                          color={isFull ? 'yellow' : 'brand'}
+                          onClick={() => createRsvp()}
+                          loading={isCreating}
+                          radius="md"
+                        >
+                          {isFull ? 'Join Waitlist' : 'Register'}
+                        </Button>
+                      )}
+                    </>
+                  ) : !isAuthenticated ? (
+                    <Button
+                      fullWidth
+                      component={Link}
+                      to={ROUTES.LOGIN}
+                      variant="light"
+                      radius="md"
+                    >
+                      Login to register
+                    </Button>
+                  ) : null}
+
+                  {isHost && (
+                    <Alert color="blue" title="You are the host">
+                      You can manage this event from the actions menu.
+                    </Alert>
+                  )}
+
+                  {isCancelled && cancellationReason && (
+                    <Alert color="red" title="Event Cancelled">
+                      {cancellationReason}
+                    </Alert>
+                  )}
+
+                  {isCompleted && (
+                    <Alert color="gray" title="Event Completed">
+                      This event has ended. You can now leave a review.
+                    </Alert>
+                  )}
+
+                  <Button
+                    variant="light"
+                    color="gray"
+                    leftSection={<IconShare size={16} />}
+                    onClick={() => navigator.clipboard.writeText(window.location.href)}
+                    radius="md"
+                  >
+                    Share Event
+                  </Button>
+                </Stack>
+              </Paper>
+
+              {/* Host card */}
+              <Paper withBorder p="lg" radius="lg">
+                <Text fw={600} size="sm" c="dimmed" mb="md" tt="uppercase">Hosted by</Text>
+                <Group gap="md">
+                  <Avatar src={hostAvatarSrc} size={56} radius="xl" />
                   <div>
-                    <Text size="sm" fw={500}>{formatDate(startTime)}</Text>
-                    <Text size="sm" c="dimmed">{formatDate(endTime)}</Text>
+                    <Text fw={600}>{host.displayName}</Text>
+                    <UserTrustBadge trustLevel={host.trustLevel} />
                   </div>
                 </Group>
-
-                <Group gap="xs">
-                  <IconMapPin size={18} />
-                  <Text size="sm">{location}</Text>
-                </Group>
-
-                <Divider />
-
-                <CapacityBar current={currentRsvpCount} max={maxCapacity} />
-
-                <Group justify="space-between">
-                  <Group gap={4}>
-                    <IconUsers size={16} />
-                    <Text size="sm">{currentRsvpCount} / {maxCapacity} spots</Text>
-                  </Group>
-                  {isFull && <Badge color="orange">Full</Badge>}
-                </Group>
-
-                <Divider />
-
-                {/* RSVP Button Section */}
-                {!isHost && !isCancelled && !isCompleted && (
-                  <>
-                    {myRsvpStatus === 'GOING' ? (
-                      <Button
-                        fullWidth
-                        color="red"
-                        variant="light"
-                        onClick={() => setCancelRsvpModalOpen(true)}
-                        loading={isCancelling}
-                      >
-                        Cancel Registration
-                      </Button>
-                    ) : myRsvpStatus === 'WAITLISTED' ? (
-                      <>
-                        <Button fullWidth color="yellow" variant="light" disabled>
-                          Waitlisted
-                        </Button>
-                        {myRsvp && (
-                          <WaitlistBanner eventId={id} rsvpId={myRsvp.id} />
-                        )}
-                      </>
-                    ) : (
-                      <Button
-                        fullWidth
-                        color={isFull ? 'yellow' : 'blue'}
-                        onClick={() => createRsvp()}
-                        loading={isCreating}
-                      >
-                        {isFull ? 'Join Waitlist' : 'Register'}
-                      </Button>
-                    )}
-                  </>
-                )}
-
-                {isHost && (
-                  <Alert color="blue" title="You are the host">
-                    You can manage this event from the actions menu.
-                  </Alert>
-                )}
-
-                {isCancelled && cancellationReason && (
-                  <Alert color="red" title="Event Cancelled">
-                    {cancellationReason}
-                  </Alert>
-                )}
-
-                {isCompleted && (
-                  <Alert color="gray" title="Event Completed">
-                    This event has ended. You can now leave a review.
-                  </Alert>
-                )}
-              </Stack>
-            </Paper>
-          </Stack>
+              </Paper>
+            </Stack>
+          </div>
         </Grid.Col>
       </Grid>
 
@@ -428,6 +509,7 @@ export function EventDetailPage() {
         onClose={() => setCancelModalOpen(false)}
         title="Cancel Event"
         centered
+        radius="xl"
       >
         <Stack>
           <Text size="sm">
@@ -441,15 +523,17 @@ export function EventDetailPage() {
             maxLength={500}
             autosize
             minRows={2}
+            radius="md"
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setCancelModalOpen(false)}>
+            <Button variant="default" onClick={() => setCancelModalOpen(false)} radius="md">
               No, keep it
             </Button>
             <Button
               color="orange"
               loading={cancelMutation.isPending}
               onClick={() => cancelMutation.mutate({ id, reason: cancelReason })}
+              radius="md"
             >
               Yes, cancel event
             </Button>
@@ -463,19 +547,21 @@ export function EventDetailPage() {
         onClose={() => setDeleteModalOpen(false)}
         title="Move to Trash"
         centered
+        radius="xl"
       >
         <Stack>
           <Text size="sm">
             This will move the event to your trash. You can restore it later from My Events.
           </Text>
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setDeleteModalOpen(false)}>
+            <Button variant="default" onClick={() => setDeleteModalOpen(false)} radius="md">
               Cancel
             </Button>
             <Button
               color="red"
               loading={deleteMutation.isPending}
               onClick={() => deleteMutation.mutate(id)}
+              radius="md"
             >
               Move to Trash
             </Button>
@@ -492,6 +578,7 @@ export function EventDetailPage() {
         }}
         title="Cancel Registration"
         centered
+        radius="xl"
       >
         <Stack>
           <Text size="sm">
@@ -505,16 +592,13 @@ export function EventDetailPage() {
             maxLength={500}
             autosize
             minRows={2}
+            radius="md"
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setCancelRsvpModalOpen(false)}>
+            <Button variant="default" onClick={() => setCancelRsvpModalOpen(false)} radius="md">
               No, keep my spot
             </Button>
-            <Button
-              color="red"
-              loading={isCancelling}
-              onClick={handleCancelRsvp}
-            >
+            <Button color="red" loading={isCancelling} onClick={handleCancelRsvp} radius="md">
               Yes, cancel registration
             </Button>
           </Group>

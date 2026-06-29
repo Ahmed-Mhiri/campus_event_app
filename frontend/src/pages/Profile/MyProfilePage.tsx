@@ -1,9 +1,6 @@
-// src/pages/Profile/MyProfilePage.tsx
-
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Container,
   Paper,
   Title,
   Stack,
@@ -15,6 +12,7 @@ import {
   Divider,
   SimpleGrid,
   Rating,
+  Container,
 } from '@mantine/core';
 import {
   IconUserEdit,
@@ -27,13 +25,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { useReviews } from '@/hooks/useReviews';
 import { ROUTES } from '@/constants/routes';
 import { getAvatarUrl } from '@/utils/fileHelpers';
-import { DeleteAccountModal } from '@/components/molecules/DeleteAccountModal/DeleteAccountModal';
+import { DeleteAccountModal } from '@/components/molecules/DeleteAccountModal';
+import { PageHeader } from '@/components/molecules/PageHeader';
 
 export function MyProfilePage() {
   const { user } = useAuth();
   const [deleteModalOpened, setDeleteModalOpened] = useState(false);
 
-  // Fetch host reviews summary
   const { useHostReviews } = useReviews();
   const { data: hostReviews } = useHostReviews(user?.id || '', 0, 5);
   const reviews = hostReviews?.content || [];
@@ -49,20 +47,21 @@ export function MyProfilePage() {
     );
   }
 
-  // Ensure avatar src is string | null | undefined
   const avatarSrc = user.profileImageUrl || getAvatarUrl(user.id) || undefined;
 
   return (
     <>
       <Container size="md" py="xl">
-        <Paper radius="md" p="xl" withBorder>
+        <PageHeader title="My Profile" />
+        
+        <Paper radius="lg" p="xl" withBorder>
           <Stack align="center" gap="md">
             <Avatar
               src={avatarSrc != null ? String(avatarSrc) : undefined}
-
               size={120}
               radius="xl"
               alt={user.displayName}
+              style={{ border: '4px solid var(--app-border)' }}
             />
             <Title order={2}>{user.displayName}</Title>
             <Text c="dimmed" size="sm">
@@ -70,6 +69,7 @@ export function MyProfilePage() {
             </Text>
             <Group gap="xs">
               <Badge
+                radius="md"
                 color={
                   user.trustLevel === 'TRUSTED_HOST'
                     ? 'green'
@@ -80,7 +80,7 @@ export function MyProfilePage() {
               >
                 {user.trustLevel}
               </Badge>
-              <Badge color="blue">{user.role}</Badge>
+              <Badge radius="md" color="blue">{user.role}</Badge>
             </Group>
             {user.bio && (
               <Text ta="center" maw={400}>
@@ -96,7 +96,7 @@ export function MyProfilePage() {
             <Text fw={500}>Host Rating</Text>
             <Rating value={averageRating} readOnly fractions={2} size="lg" />
             <Text size="sm" c="dimmed">
-              {hostReviews?.totalElements || 0} reviews • {averageRating.toFixed(1)} ⭐ average
+              {hostReviews?.totalElements || 0} reviews • {averageRating.toFixed(1)} ★ average
             </Text>
           </Stack>
 
@@ -109,6 +109,7 @@ export function MyProfilePage() {
               leftSection={<IconUserEdit size={18} />}
               variant="outline"
               fullWidth
+              radius="md"
             >
               Edit Profile
             </Button>
@@ -118,6 +119,7 @@ export function MyProfilePage() {
               leftSection={<IconLock size={18} />}
               variant="outline"
               fullWidth
+              radius="md"
             >
               Change Password
             </Button>
@@ -127,6 +129,7 @@ export function MyProfilePage() {
               leftSection={<IconBell size={18} />}
               variant="outline"
               fullWidth
+              radius="md"
             >
               Preferences
             </Button>
@@ -136,6 +139,7 @@ export function MyProfilePage() {
               leftSection={<IconShield size={18} />}
               variant="outline"
               fullWidth
+              radius="md"
             >
               Trust Status
             </Button>
@@ -149,6 +153,7 @@ export function MyProfilePage() {
             leftSection={<IconTrash size={18} />}
             fullWidth
             onClick={() => setDeleteModalOpened(true)}
+            radius="md"
           >
             Delete Account
           </Button>

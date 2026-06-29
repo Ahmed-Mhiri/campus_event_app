@@ -1,9 +1,7 @@
-// src/pages/Admin/AdminEventsPage.tsx
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Container,
-  Title,
   Stack,
   Paper,
   Table,
@@ -25,10 +23,10 @@ import {
   IconX,
   IconFlag,
   IconEye,
-  IconRefresh,
 } from '@tabler/icons-react';
 import { useAdmin } from '@/hooks/useAdmin';
 import { formatDate } from '@/utils/dateFormatter';
+import { PageHeader } from '@/components/molecules/PageHeader';
 import type { Event } from '@/types';
 
 export function AdminEventsPage() {
@@ -90,7 +88,6 @@ export function AdminEventsPage() {
 
   const handleReject = async (id: string) => {
     setRejectModalOpen(true);
-    // Store the ID for later use
     (window as any)._pendingRejectId = id;
   };
 
@@ -146,20 +143,9 @@ export function AdminEventsPage() {
   return (
     <Container size="xl" py="xl">
       <Stack gap="lg">
-        <Group justify="space-between">
-          <Title order={2}>Event Moderation</Title>
-          <Group>
-            <Button
-              variant="default"
-              onClick={() => refetch()}
-              leftSection={<IconRefresh size={16} />}
-            >
-              Refresh
-            </Button>
-          </Group>
-        </Group>
+        <PageHeader title="Event Moderation" />
 
-        <Paper withBorder p="md" radius="md">
+        <Paper withBorder p="md" radius="lg">
           <Stack gap="md">
             <Group justify="space-between">
               <Select
@@ -169,6 +155,7 @@ export function AdminEventsPage() {
                 onChange={(val) => setStatusFilter(val || null)}
                 clearable
                 w={200}
+                radius="md"
               />
               <Text size="sm" c="dimmed">
                 {selectedEvents.size} selected
@@ -182,6 +169,7 @@ export function AdminEventsPage() {
                   size="xs"
                   onClick={handleBulkApprove}
                   loading={actionLoading}
+                  radius="md"
                 >
                   Approve Selected ({selectedEvents.size})
                 </Button>
@@ -190,6 +178,7 @@ export function AdminEventsPage() {
                   size="xs"
                   onClick={handleBulkReject}
                   loading={actionLoading}
+                  radius="md"
                 >
                   Reject Selected ({selectedEvents.size})
                 </Button>
@@ -231,7 +220,7 @@ export function AdminEventsPage() {
                       <Text size="sm">{event.host.displayName}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <Badge color={statusColors[event.status] || 'gray'}>
+                      <Badge color={statusColors[event.status] || 'gray'} radius="md">
                         {event.status}
                       </Badge>
                     </Table.Td>
@@ -302,6 +291,7 @@ export function AdminEventsPage() {
           setRejectReason('');
         }}
         title="Reject Event"
+        radius="xl"
       >
         <Stack>
           <Text size="sm">
@@ -315,12 +305,13 @@ export function AdminEventsPage() {
             maxLength={500}
             minRows={3}
             required
+            radius="md"
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setRejectModalOpen(false)}>
+            <Button variant="default" onClick={() => setRejectModalOpen(false)} radius="md">
               Cancel
             </Button>
-            <Button color="red" onClick={confirmReject}>
+            <Button color="red" onClick={confirmReject} radius="md">
               Reject Event
             </Button>
           </Group>

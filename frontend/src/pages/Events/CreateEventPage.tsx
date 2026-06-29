@@ -1,6 +1,6 @@
 // src/pages/Events/CreateEventPage.tsx
 import { Container, Title, Stack } from '@mantine/core';
-import { EventForm } from '@/components/organisms/EventForm/EventForm';
+import { EventForm } from '@/components/organisms/EventForm';
 
 export function CreateEventPage() {
   return (

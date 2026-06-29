@@ -1,12 +1,11 @@
-// src/App.tsx
-
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 import { ROUTES } from '@/constants/routes';
 import { ProtectedRoute, AdminRoute } from '@/components/templates/ProtectedRoute';
 import { AuthInitializer } from '@/components/templates/AuthInitializer';
 
 // Layouts
-import { PageLayout } from '@/components/templates/PageLayout/PageLayout';
+import { PageLayout } from '@/components/templates/PageLayout';
 import { AdminLayout } from '@/components/templates/AdminLayout/AdminLayout';
 import { AuthLayout } from '@/components/templates/AuthLayout/AuthLayout';
 
@@ -38,63 +37,78 @@ import { AdminDashboardPage } from '@/pages/Admin/AdminDashboardPage';
 import { AdminEventsPage } from '@/pages/Admin/AdminEventsPage';
 import { AdminUsersPage } from '@/pages/Admin/AdminUsersPage';
 import { AdminCategoriesPage } from '@/pages/Admin/AdminCategoriesPage';
+import { AdminReportsPage } from '@/pages/Admin/AdminReportsPage';
+
+// Public Profile
+import { PublicProfilePage } from '@/pages/Profile/PublicProfilePage';
 
 // Error Pages
 import { NotFoundPage } from '@/pages/Error/NotFoundPage';
 import { ErrorPage } from '@/pages/Error/ErrorPage';
 
+function AnimatedRoutes() {
+  const location = useLocation();
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        {/* Auth (no main layout) */}
+        <Route element={<AuthLayout />}>
+          <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+          <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
+          <Route path={ROUTES.VERIFY_EMAIL} element={<VerifyEmailPage />} />
+          <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
+          <Route path={ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
+        </Route>
+
+        {/* Public routes */}
+        <Route element={<PageLayout />}>
+          <Route path={ROUTES.HOME} element={<HomePage />} />
+          <Route path={ROUTES.EVENTS} element={<EventsPage />} />
+          <Route path="/events/:slug" element={<EventDetailPage />} />
+          <Route path="/profile/:userId" element={<PublicProfilePage />} />
+        </Route>
+
+        {/* Protected routes */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<PageLayout />}>
+            <Route path={ROUTES.CREATE_EVENT} element={<CreateEventPage />} />
+            <Route path="/events/edit/:id" element={<EditEventPage />} />
+            <Route path={ROUTES.MY_EVENTS} element={<MyEventsPage />} />
+            <Route path={ROUTES.PROFILE} element={<MyProfilePage />} />
+            <Route path={ROUTES.EDIT_PROFILE} element={<EditProfilePage />} />
+            <Route path={ROUTES.CHANGE_PASSWORD} element={<ChangePasswordPage />} />
+            <Route path={ROUTES.PREFERENCES} element={<PreferencesPage />} />
+            <Route path={ROUTES.TRUST_STATUS} element={<TrustStatusPage />} />
+            <Route path={ROUTES.MY_REGISTRATIONS} element={<MyRegistrationsPage />} />
+            <Route path="/check-in/host/:eventId" element={<HostCheckInPage />} />
+            <Route path="/check-in/attendee/:eventId" element={<AttendeeCheckInPage />} />
+          </Route>
+        </Route>
+
+        {/* Admin routes */}
+        <Route element={<AdminRoute />}>
+          <Route element={<AdminLayout />}>
+            <Route path={ROUTES.ADMIN_DASHBOARD} element={<AdminDashboardPage />} />
+            <Route path={ROUTES.ADMIN_EVENTS} element={<AdminEventsPage />} />
+            <Route path={ROUTES.ADMIN_USERS} element={<AdminUsersPage />} />
+            <Route path={ROUTES.ADMIN_CATEGORIES} element={<AdminCategoriesPage />} />
+            <Route path={ROUTES.ADMIN_REPORTS} element={<AdminReportsPage />} />
+          </Route>
+        </Route>
+
+        {/* Error routes */}
+        <Route path="/error" element={<ErrorPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </AnimatePresence>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthInitializer>
-        <Routes>
-          {/* Auth (no main layout) */}
-          <Route element={<AuthLayout />}>
-            <Route path={ROUTES.LOGIN} element={<LoginPage />} />
-            <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
-            <Route path={ROUTES.VERIFY_EMAIL} element={<VerifyEmailPage />} />
-            <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
-            <Route path={ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
-          </Route>
-
-          {/* Public routes */}
-          <Route element={<PageLayout />}>
-            <Route path={ROUTES.HOME} element={<HomePage />} />
-            <Route path={ROUTES.EVENTS} element={<EventsPage />} />
-            <Route path="/events/:slug" element={<EventDetailPage />} />
-          </Route>
-
-          {/* Protected routes */}
-          <Route element={<ProtectedRoute />}>
-            <Route element={<PageLayout />}>
-              <Route path={ROUTES.CREATE_EVENT} element={<CreateEventPage />} />
-              <Route path="/events/edit/:id" element={<EditEventPage />} />
-              <Route path={ROUTES.MY_EVENTS} element={<MyEventsPage />} />
-              <Route path={ROUTES.PROFILE} element={<MyProfilePage />} />
-              <Route path={ROUTES.EDIT_PROFILE} element={<EditProfilePage />} />
-              <Route path={ROUTES.CHANGE_PASSWORD} element={<ChangePasswordPage />} />
-              <Route path={ROUTES.PREFERENCES} element={<PreferencesPage />} />
-              <Route path={ROUTES.TRUST_STATUS} element={<TrustStatusPage />} />
-              <Route path={ROUTES.MY_REGISTRATIONS} element={<MyRegistrationsPage />} />
-              <Route path="/check-in/host/:eventId" element={<HostCheckInPage />} />
-              <Route path="/check-in/attendee/:eventId" element={<AttendeeCheckInPage />} />
-            </Route>
-          </Route>
-
-          {/* Admin routes */}
-          <Route element={<AdminRoute />}>
-            <Route element={<AdminLayout />}>
-              <Route path={ROUTES.ADMIN_DASHBOARD} element={<AdminDashboardPage />} />
-              <Route path={ROUTES.ADMIN_EVENTS} element={<AdminEventsPage />} />
-              <Route path={ROUTES.ADMIN_USERS} element={<AdminUsersPage />} />
-              <Route path={ROUTES.ADMIN_CATEGORIES} element={<AdminCategoriesPage />} />
-            </Route>
-          </Route>
-
-          {/* Error routes */}
-          <Route path="/error" element={<ErrorPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+        <AnimatedRoutes />
       </AuthInitializer>
     </BrowserRouter>
   );

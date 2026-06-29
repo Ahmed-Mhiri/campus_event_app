@@ -5,6 +5,7 @@
 import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore';
 import { ROUTES } from '@/constants/routes';
+import { notifications } from '@mantine/notifications'; // 👈 added for 429 handling
 
 // ── IMPORTANT ──
 // Make sure VITE_API_URL is set in your frontend .env file.
@@ -31,11 +32,22 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// ----- Response Interceptor: 401 → Refresh -----
+// ----- Response Interceptor: 429 → notify, 401 → Refresh -----
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // 👇 NEW: Handle rate limiting (429)
+    if (error.response?.status === 429) {
+      const retryAfter = error.response.headers['retry-after'] || 60;
+      notifications.show({
+        title: 'Too many requests',
+        message: `Please wait ${retryAfter} seconds before trying again.`,
+        color: 'orange',
+      });
+      return Promise.reject(error);
+    }
 
     // If 401 and we haven't retried yet
     if (error.response?.status === 401 && !originalRequest._retry) {

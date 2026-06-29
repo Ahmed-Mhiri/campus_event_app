@@ -19,7 +19,7 @@ import {
 } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { eventsApi } from '@/api/eventsApi';
-import { EventCard } from '@/components/molecules/EventCard/EventCard';
+import { EventCard } from '@/components/molecules/EventCard';
 import { ROUTES } from '@/constants/routes';
 import { IconPlus, IconDots, IconCheck, IconX, IconRestore, IconTrash, IconEdit } from '@tabler/icons-react';
 import type { Event } from '@/types';

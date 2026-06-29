@@ -1,8 +1,6 @@
-// src/pages/Admin/AdminCategoriesPage.tsx
 import { useState } from 'react';
 import {
   Container,
-  Title,
   Stack,
   Paper,
   Table,
@@ -21,6 +19,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconPlus, IconEdit, IconTrash, IconRefresh } from '@tabler/icons-react';
 import { useAdmin } from '@/hooks/useAdmin';
+import { PageHeader } from '@/components/molecules/PageHeader';
 import type { Category } from '@/types';
 
 export function AdminCategoriesPage() {
@@ -86,29 +85,30 @@ export function AdminCategoriesPage() {
   return (
     <Container size="xl" py="xl">
       <Stack gap="lg">
-        <Group justify="space-between">
-          <Title order={2}>Category Management</Title>
-          <Group>
-            <Button
-              variant="default"
-              onClick={() => refetch()}
-              leftSection={<IconRefresh size={16} />}
-            >
-              Refresh
-            </Button>
-            <Button
-              leftSection={<IconPlus size={16} />}
-              onClick={() => {
-                resetForm();
-                setModalOpen(true);
-              }}
-            >
-              Add Category
-            </Button>
-          </Group>
+        <PageHeader title="Category Management" />
+
+        <Group justify="flex-end">
+          <Button
+            variant="default"
+            onClick={() => refetch()}
+            leftSection={<IconRefresh size={16} />}
+            radius="md"
+          >
+            Refresh
+          </Button>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              resetForm();
+              setModalOpen(true);
+            }}
+            radius="md"
+          >
+            Add Category
+          </Button>
         </Group>
 
-        <Paper withBorder p="md" radius="md">
+        <Paper withBorder p="md" radius="lg">
           {categories?.length === 0 ? (
             <Text c="dimmed" ta="center" py="xl">
               No categories found. Create your first category!
@@ -133,7 +133,7 @@ export function AdminCategoriesPage() {
                     </Table.Td>
                     <Table.Td>
                       <Group gap="xs">
-                        <Badge color={category.color || 'gray'} size="lg">
+                        <Badge color={category.color || 'gray'} size="lg" radius="md">
                           {category.name}
                         </Badge>
                       </Group>
@@ -188,6 +188,7 @@ export function AdminCategoriesPage() {
         opened={modalOpen}
         onClose={resetForm}
         title={editingCategory ? 'Edit Category' : 'Create Category'}
+        radius="xl"
       >
         <Stack>
           <TextInput
@@ -196,30 +197,34 @@ export function AdminCategoriesPage() {
             value={name}
             onChange={(e) => setName(e.currentTarget.value)}
             required
+            radius="md"
           />
           <TextInput
             label="Icon (optional)"
             placeholder="e.g., music, tech, sports"
             value={icon}
             onChange={(e) => setIcon(e.currentTarget.value)}
+            radius="md"
           />
           <ColorInput
             label="Color"
             value={color}
             onChange={(val) => setColor(val)}
             format="hex"
+            radius="md"
           />
           <NumberInput
             label="Sort Order"
             value={sortOrder}
             onChange={(val) => setSortOrder(typeof val === 'number' ? val : 0)}
             min={0}
+            radius="md"
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={resetForm}>
+            <Button variant="default" onClick={resetForm} radius="md">
               Cancel
             </Button>
-            <Button onClick={handleSubmit}>
+            <Button onClick={handleSubmit} radius="md">
               {editingCategory ? 'Update' : 'Create'}
             </Button>
           </Group>

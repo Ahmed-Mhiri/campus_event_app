@@ -1,4 +1,3 @@
-// src/pages/Admin/AdminDashboardPage.tsx
 import { Link } from 'react-router-dom';
 import {
   Container,
@@ -27,6 +26,7 @@ import {
 import { useAdmin } from '@/hooks/useAdmin';
 import { ROUTES } from '@/constants/routes';
 import { formatDate } from '@/utils/dateFormatter';
+import { PageHeader } from '@/components/molecules/PageHeader';
 
 export function AdminDashboardPage() {
   const { useDashboard } = useAdmin();
@@ -43,7 +43,7 @@ export function AdminDashboardPage() {
   if (error || !stats) {
     return (
       <Container py="xl">
-        <Paper withBorder p="xl" ta="center">
+        <Paper withBorder p="xl" radius="lg" ta="center">
           <Text c="red">Failed to load dashboard data.</Text>
         </Paper>
       </Container>
@@ -84,7 +84,7 @@ export function AdminDashboardPage() {
   return (
     <Container size="xl" py="xl">
       <Stack gap="lg">
-        <Title order={2}>Admin Dashboard</Title>
+        <PageHeader title="Admin Dashboard" />
 
         {/* Stats Cards */}
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
@@ -93,7 +93,7 @@ export function AdminDashboardPage() {
               key={card.title}
               withBorder
               p="md"
-              radius="md"
+              radius="lg"
               component={Link}
               to={card.link}
               style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
@@ -112,10 +112,10 @@ export function AdminDashboardPage() {
         </SimpleGrid>
 
         {/* Recent Pending Events */}
-        <Paper withBorder p="md" radius="md">
+        <Paper withBorder p="md" radius="lg">
           <Group justify="space-between" mb="md">
             <Title order={4}>Recent Pending Events</Title>
-            <Button component={Link} to={ROUTES.ADMIN_EVENTS} variant="subtle" size="xs">
+            <Button component={Link} to={ROUTES.ADMIN_EVENTS} variant="subtle" size="xs" radius="md">
               View all
             </Button>
           </Group>
@@ -183,10 +183,10 @@ export function AdminDashboardPage() {
         </Paper>
 
         {/* Recent Reports */}
-        <Paper withBorder p="md" radius="md">
+        <Paper withBorder p="md" radius="lg">
           <Group justify="space-between" mb="md">
             <Title order={4}>Recent Reports</Title>
-            <Button component={Link} to="/admin/reports" variant="subtle" size="xs">
+            <Button component={Link} to="/admin/reports" variant="subtle" size="xs" radius="md">
               View all
             </Button>
           </Group>
@@ -210,13 +210,13 @@ export function AdminDashboardPage() {
                       <Text size="sm">{report.eventTitle}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <Badge color="red" size="xs">{report.reason}</Badge>
+                      <Badge color="red" size="xs" radius="md">{report.reason}</Badge>
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm">{report.reporter.displayName}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <Badge color="yellow" size="xs">Open</Badge>
+                      <Badge color="yellow" size="xs" radius="md">Open</Badge>
                     </Table.Td>
                   </Table.Tr>
                 ))}

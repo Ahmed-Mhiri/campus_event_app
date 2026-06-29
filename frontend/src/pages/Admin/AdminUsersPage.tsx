@@ -1,8 +1,6 @@
-// src/pages/Admin/AdminUsersPage.tsx
 import { useState } from 'react';
 import {
   Container,
-  Title,
   Stack,
   Paper,
   Table,
@@ -19,10 +17,8 @@ import {
   Modal,
   Menu,
 } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import {
   IconSearch,
-  IconRefresh,
   IconFlag,
   IconUserCheck,
   IconUserX,
@@ -31,6 +27,7 @@ import {
 } from '@tabler/icons-react';
 import { useAdmin } from '@/hooks/useAdmin';
 import { formatDate } from '@/utils/dateFormatter';
+import { PageHeader } from '@/components/molecules/PageHeader';
 import type { User } from '@/types';
 
 export function AdminUsersPage() {
@@ -71,15 +68,6 @@ export function AdminUsersPage() {
       await refetch();
     } catch (error) {
       // Handle error silently (already shown in hook)
-    }
-  };
-
-  const handleForcePromote = async (userId: string) => {
-    try {
-      await promoteUser({ userId, force: true });
-      await refetch();
-    } catch (error) {
-      // Handle error silently
     }
   };
 
@@ -139,18 +127,9 @@ export function AdminUsersPage() {
   return (
     <Container size="xl" py="xl">
       <Stack gap="lg">
-        <Group justify="space-between">
-          <Title order={2}>User Management</Title>
-          <Button
-            variant="default"
-            onClick={() => refetch()}
-            leftSection={<IconRefresh size={16} />}
-          >
-            Refresh
-          </Button>
-        </Group>
+        <PageHeader title="User Management" />
 
-        <Paper withBorder p="md" radius="md">
+        <Paper withBorder p="md" radius="lg">
           <Stack gap="md">
             <Group justify="space-between">
               <Group>
@@ -160,6 +139,7 @@ export function AdminUsersPage() {
                   onChange={(e) => setSearch(e.currentTarget.value)}
                   leftSection={<IconSearch size={16} />}
                   w={250}
+                  radius="md"
                 />
                 <Select
                   placeholder="Trust level"
@@ -168,6 +148,7 @@ export function AdminUsersPage() {
                   onChange={(val) => setTrustFilter(val || null)}
                   clearable
                   w={150}
+                  radius="md"
                 />
               </Group>
               <Text size="sm" c="dimmed">
@@ -198,12 +179,12 @@ export function AdminUsersPage() {
                       <Text size="sm">{user.universityEmail}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <Badge color={user.role === 'ADMIN' ? 'blue' : 'gray'}>
+                      <Badge color={user.role === 'ADMIN' ? 'blue' : 'gray'} radius="md">
                         {user.role}
                       </Badge>
                     </Table.Td>
                     <Table.Td>
-                      <Badge color={trustColors[user.trustLevel] || 'gray'}>
+                      <Badge color={trustColors[user.trustLevel] || 'gray'} radius="md">
                         {user.trustLevel}
                       </Badge>
                     </Table.Td>
@@ -275,6 +256,7 @@ export function AdminUsersPage() {
         opened={trustModalOpen}
         onClose={() => setTrustModalOpen(false)}
         title="Change Trust Level"
+        radius="xl"
       >
         <Stack>
           <Text size="sm">
@@ -285,12 +267,13 @@ export function AdminUsersPage() {
             data={trustOptions}
             value={newTrustLevel}
             onChange={(val) => setNewTrustLevel(val || 'NEW')}
+            radius="md"
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setTrustModalOpen(false)}>
+            <Button variant="default" onClick={() => setTrustModalOpen(false)} radius="md">
               Cancel
             </Button>
-            <Button onClick={confirmTrustUpdate}>Update</Button>
+            <Button onClick={confirmTrustUpdate} radius="md">Update</Button>
           </Group>
         </Stack>
       </Modal>
