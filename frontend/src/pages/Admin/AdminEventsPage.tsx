@@ -26,7 +26,8 @@ import {
 } from '@tabler/icons-react';
 import { useAdmin } from '@/hooks/useAdmin';
 import { formatDate } from '@/utils/dateFormatter';
-import { PageHeader } from '@/components/molecules/PageHeader';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import type { Event } from '@/types';
 
 export function AdminEventsPage() {
@@ -35,7 +36,9 @@ export function AdminEventsPage() {
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [pendingRejectId, setPendingRejectId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [bulkConfirmModal, setBulkConfirmModal] = useState<{ type: 'approve' | 'reject'; count: number } | null>(null);
 
   const {
     useAdminEvents,
@@ -73,11 +76,8 @@ export function AdminEventsPage() {
 
   const handleSelect = (id: string) => {
     const newSet = new Set(selectedEvents);
-    if (newSet.has(id)) {
-      newSet.delete(id);
-    } else {
-      newSet.add(id);
-    }
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
     setSelectedEvents(newSet);
   };
 
@@ -86,17 +86,18 @@ export function AdminEventsPage() {
     await refetch();
   };
 
-  const handleReject = async (id: string) => {
+  const handleReject = (id: string) => {
+    setPendingRejectId(id);
+    setRejectReason('');
     setRejectModalOpen(true);
-    (window as any)._pendingRejectId = id;
   };
 
   const confirmReject = async () => {
-    const id = (window as any)._pendingRejectId;
-    if (!id) return;
-    await rejectEvent(id);
+    if (!pendingRejectId) return;
+    await rejectEvent(pendingRejectId);
     setRejectModalOpen(false);
     setRejectReason('');
+    setPendingRejectId(null);
     await refetch();
   };
 
@@ -105,20 +106,26 @@ export function AdminEventsPage() {
     await refetch();
   };
 
-  const handleBulkApprove = async () => {
+  const handleBulkApprove = () => {
     if (selectedEvents.size === 0) return;
-    setActionLoading(true);
-    await bulkApprove({ eventIds: Array.from(selectedEvents) });
-    setSelectedEvents(new Set());
-    setActionLoading(false);
-    await refetch();
+    setBulkConfirmModal({ type: 'approve', count: selectedEvents.size });
   };
 
-  const handleBulkReject = async () => {
+  const handleBulkReject = () => {
     if (selectedEvents.size === 0) return;
+    setBulkConfirmModal({ type: 'reject', count: selectedEvents.size });
+  };
+
+  const confirmBulkAction = async () => {
+    if (!bulkConfirmModal) return;
     setActionLoading(true);
-    await bulkReject({ eventIds: Array.from(selectedEvents) });
+    if (bulkConfirmModal.type === 'approve') {
+      await bulkApprove({ eventIds: Array.from(selectedEvents) });
+    } else {
+      await bulkReject({ eventIds: Array.from(selectedEvents) });
+    }
     setSelectedEvents(new Set());
+    setBulkConfirmModal(null);
     setActionLoading(false);
     await refetch();
   };
@@ -289,6 +296,7 @@ export function AdminEventsPage() {
         onClose={() => {
           setRejectModalOpen(false);
           setRejectReason('');
+          setPendingRejectId(null);
         }}
         title="Reject Event"
         radius="xl"
@@ -317,6 +325,18 @@ export function AdminEventsPage() {
           </Group>
         </Stack>
       </Modal>
+
+      {/* Bulk action confirmation */}
+      <ConfirmModal
+        opened={!!bulkConfirmModal}
+        onClose={() => setBulkConfirmModal(null)}
+        onConfirm={confirmBulkAction}
+        title={`Bulk ${bulkConfirmModal?.type === 'approve' ? 'Approve' : 'Reject'}`}
+        message={`Are you sure you want to ${bulkConfirmModal?.type === 'approve' ? 'approve' : 'reject'} ${bulkConfirmModal?.count} event(s)?`}
+        confirmLabel={bulkConfirmModal?.type === 'approve' ? 'Approve' : 'Reject'}
+        confirmColor={bulkConfirmModal?.type === 'approve' ? 'green' : 'red'}
+        loading={actionLoading}
+      />
     </Container>
   );
 }

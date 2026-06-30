@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16
@@ -31,36 +29,20 @@ services:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
     restart: unless-stopped
 
-  backend-asta:
-    build:
-      context: ./backend-asta
-    container_name: mystudyapp-backend-asta
-    ports:
-      - "8082:8082"
-    env_file:
-      - .env
-    environment:
-      ASTA_SERVER_PORT: 8082
-      MQTT_HOST: mosquitto
-      # (no DB needed, but keep for safety)
-    depends_on:
-      mosquitto:
-        condition: service_started
-    restart: unless-stopped
-
   backend-main:
     build:
       context: ./backend-main
-    container_name: mystudyapp-backend-main
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./backend-main:/app
+      - ~/.m2:/root/.m2
+    env_file:
+      - .env                         # ← Add this line
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev   # Keep this if you want to enforce dev profile
+    command: mvn spring-boot:run
     ports:
       - "8081:8081"
-    env_file:
-      - .env
-    environment:
-      SERVER_PORT: 8081
-      DB_HOST: postgres
-      DB_PORT: 5432
-      MQTT_HOST: mosquitto
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,15 +50,23 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  frontend:
+  backend-asta:
     build:
-      context: ./frontend
-    container_name: mystudyapp-frontend
+      context: ./backend-asta
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./backend-asta:/app
+      - ~/.m2:/root/.m2
+    env_file:
+      - .env                         # ← Add this line
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    command: mvn spring-boot:run
     ports:
-      - "80:80"   # maps to host port 80 (you can change to 3000:80 if port 80 is taken)
+      - "8082:8082"
     depends_on:
-      - backend-main
-      - backend-asta
+      mosquitto:
+        condition: service_started
     restart: unless-stopped
 
 volumes:

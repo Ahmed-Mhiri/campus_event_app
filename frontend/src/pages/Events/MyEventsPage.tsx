@@ -1,10 +1,9 @@
-// src/pages/Events/MyEventsPage.tsx
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Container,
-  Title,
   Stack,
+  Title,
   Tabs,
   SimpleGrid,
   Button,
@@ -16,21 +15,44 @@ import {
   Menu,
   Modal,
   Textarea,
+  Box,
 } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { eventsApi } from '@/api/eventsApi';
 import { EventCard } from '@/components/molecules/EventCard';
 import { ROUTES } from '@/constants/routes';
-import { IconPlus, IconDots, IconCheck, IconX, IconRestore, IconTrash, IconEdit } from '@tabler/icons-react';
+import {
+  IconPlus,
+  IconDots,
+  IconCheck,
+  IconX,
+  IconRestore,
+  IconTrash,
+  IconEdit,
+} from '@tabler/icons-react';
 import type { Event } from '@/types';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 type TabKey = 'active' | 'pending' | 'drafts' | 'trash';
+
+const tabLabels: Record<TabKey, string> = {
+  active: 'Active',
+  pending: 'Under Review',
+  drafts: 'Drafts',
+  trash: 'Trash Bin',
+};
 
 export function MyEventsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('active');
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [cancelReason, setCancelReason] = useState('');
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [eventToDeleteId, setEventToDeleteId] = useState<string | null>(null);
+  const [moveToTrashModalOpen, setMoveToTrashModalOpen] = useState(false);
+  const [eventToTrashId, setEventToTrashId] = useState<string | null>(null);
+
   const queryClient = useQueryClient();
 
   const { data: eventsData, isLoading } = useQuery({
@@ -55,9 +77,7 @@ export function MyEventsPage() {
 
   const publishMutation = useMutation({
     mutationFn: (id: string) => eventsApi.publishEvent(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-events'] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-events'] }),
   });
 
   const cancelMutation = useMutation({
@@ -76,54 +96,64 @@ export function MyEventsPage() {
 
   const permanentDeleteMutation = useMutation({
     mutationFn: (id: string) => eventsApi.permanentDelete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-events'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-events'] });
+      setDeleteModalOpen(false);
+      setEventToDeleteId(null);
+    },
   });
 
-  const handlePublish = (id: string) => {
-    publishMutation.mutate(id);
-  };
+  const softDeleteMutation = useMutation({
+    mutationFn: (id: string) => eventsApi.softDeleteEvent(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-events'] });
+      setMoveToTrashModalOpen(false);
+      setEventToTrashId(null);
+    },
+  });
 
+  const handlePublish = (id: string) => publishMutation.mutate(id);
   const handleCancel = (event: Event) => {
     setSelectedEvent(event);
     setCancelReason('');
     setCancelModalOpen(true);
   };
-
   const confirmCancel = () => {
     if (!selectedEvent) return;
     cancelMutation.mutate({ id: selectedEvent.id, reason: cancelReason || undefined });
   };
 
-  const handleRestore = (id: string) => {
-    restoreMutation.mutate(id);
+  const handleRestore = (id: string) => restoreMutation.mutate(id);
+
+  const handleMoveToTrash = (id: string) => {
+    setEventToTrashId(id);
+    setMoveToTrashModalOpen(true);
+  };
+  const confirmMoveToTrash = () => {
+    if (!eventToTrashId) return;
+    softDeleteMutation.mutate(eventToTrashId);
   };
 
   const handlePermanentDelete = (id: string) => {
-    if (confirm('Are you sure? This action cannot be undone.')) {
-      permanentDeleteMutation.mutate(id);
-    }
+    setEventToDeleteId(id);
+    setDeleteModalOpen(true);
   };
-
-  const tabLabels: Record<TabKey, string> = {
-    active: 'Active',
-    pending: 'Under Review',
-    drafts: 'Drafts',
-    trash: 'Trash Bin',
+  const confirmPermanentDelete = () => {
+    if (!eventToDeleteId) return;
+    permanentDeleteMutation.mutate(eventToDeleteId);
   };
 
   return (
     <Container size="xl" py="xl">
       <Stack gap="lg">
-        <Group justify="space-between" align="center">
-          <Title order={2}>My Events</Title>
-          <Button
-            component={Link}
-            to={ROUTES.CREATE_EVENT}
-            leftSection={<IconPlus size={18} />}
-          >
-            Create Event
-          </Button>
-        </Group>
+        <PageHeader
+          title="My Events"
+          actions={
+            <Button component={Link} to={ROUTES.CREATE_EVENT} leftSection={<IconPlus size={18} />}>
+              Create Event
+            </Button>
+          }
+        />
 
         <Tabs value={activeTab} onChange={(val) => setActiveTab(val as TabKey)}>
           <Tabs.List>
@@ -137,21 +167,16 @@ export function MyEventsPage() {
           {Object.keys(tabLabels).map((key) => (
             <Tabs.Panel key={key} value={key} pt="md">
               {isLoading ? (
-                <Center>
+                <Center py="xl">
                   <Loader size="md" />
                 </Center>
               ) : filteredEvents.length === 0 ? (
-                <Paper withBorder p="xl" ta="center">
+                <Paper withBorder p="xl" ta="center" radius="lg">
                   <Text c="dimmed" size="lg">
                     No events in {tabLabels[key as TabKey].toLowerCase()}
                   </Text>
                   {key === 'active' && (
-                    <Button
-                      component={Link}
-                      to={ROUTES.CREATE_EVENT}
-                      variant="light"
-                      mt="md"
-                    >
+                    <Button component={Link} to={ROUTES.CREATE_EVENT} variant="light" mt="md">
                       Create your first event
                     </Button>
                   )}
@@ -159,9 +184,8 @@ export function MyEventsPage() {
               ) : (
                 <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
                   {filteredEvents.map((event) => (
-                    <Paper key={event.id} withBorder p="md" radius="md" pos="relative">
+                    <Box key={event.id} pos="relative">
                       <EventCard event={event} />
-                      {/* Action Menu */}
                       <Menu position="bottom-end" withinPortal>
                         <Menu.Target>
                           <Button
@@ -223,20 +247,14 @@ export function MyEventsPage() {
                             <Menu.Item
                               leftSection={<IconTrash size={14} />}
                               color="red"
-                              onClick={() => {
-                                if (confirm('Move to trash?')) {
-                                  eventsApi.softDeleteEvent(event.id).then(() =>
-                                    queryClient.invalidateQueries({ queryKey: ['my-events'] })
-                                  );
-                                }
-                              }}
+                              onClick={() => handleMoveToTrash(event.id)}
                             >
                               Move to Trash
                             </Menu.Item>
                           )}
                         </Menu.Dropdown>
                       </Menu>
-                    </Paper>
+                    </Box>
                   ))}
                 </SimpleGrid>
               )}
@@ -245,33 +263,52 @@ export function MyEventsPage() {
         </Tabs>
       </Stack>
 
-      {/* Cancel Modal */}
-      <Modal
-        opened={cancelModalOpen}
-        onClose={() => setCancelModalOpen(false)}
-        title="Cancel Event"
-      >
+      {/* Cancel Event Modal */}
+      <Modal opened={cancelModalOpen} onClose={() => setCancelModalOpen(false)} title="Cancel Event" centered radius="xl">
         <Stack>
-          <Text size="sm">
-            Are you sure you want to cancel this event? All attendees will be notified.
-          </Text>
+          <Text size="sm">Are you sure you want to cancel this event? All attendees will be notified.</Text>
           <Textarea
             label="Reason (optional)"
             placeholder="Why are you cancelling?"
             value={cancelReason}
             onChange={(e) => setCancelReason(e.currentTarget.value)}
             maxLength={500}
+            minRows={2}
+            radius="md"
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setCancelModalOpen(false)}>
+            <Button variant="default" onClick={() => setCancelModalOpen(false)} radius="md">
               No, keep it
             </Button>
-            <Button color="red" onClick={confirmCancel}>
+            <Button color="red" onClick={confirmCancel} loading={cancelMutation.isPending} radius="md">
               Yes, cancel event
             </Button>
           </Group>
         </Stack>
       </Modal>
+
+      {/* Move to Trash Confirmation */}
+      <ConfirmModal
+        opened={moveToTrashModalOpen}
+        onClose={() => setMoveToTrashModalOpen(false)}
+        onConfirm={confirmMoveToTrash}
+        title="Move to Trash"
+        message="This will move the event to your trash. You can restore it later from the Trash Bin."
+        confirmLabel="Move to Trash"
+        confirmColor="orange"
+        loading={softDeleteMutation.isPending}
+      />
+
+      {/* Delete Forever Confirmation */}
+      <ConfirmModal
+        opened={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={confirmPermanentDelete}
+        title="Delete Forever"
+        message="Are you sure? This action cannot be undone. The event will be permanently removed."
+        confirmLabel="Delete Forever"
+        loading={permanentDeleteMutation.isPending}
+      />
     </Container>
   );
 }

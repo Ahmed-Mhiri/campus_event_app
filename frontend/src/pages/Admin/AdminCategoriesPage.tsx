@@ -19,7 +19,8 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconPlus, IconEdit, IconTrash, IconRefresh } from '@tabler/icons-react';
 import { useAdmin } from '@/hooks/useAdmin';
-import { PageHeader } from '@/components/molecules/PageHeader';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import type { Category } from '@/types';
 
 export function AdminCategoriesPage() {
@@ -29,6 +30,7 @@ export function AdminCategoriesPage() {
   const [icon, setIcon] = useState('');
   const [color, setColor] = useState('#228BE6');
   const [sortOrder, setSortOrder] = useState<number>(0);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string } | null>(null);
 
   const { useCategories, createCategory, updateCategory, deleteCategory } = useAdmin();
   const { data: categories, isLoading, refetch } = useCategories();
@@ -49,11 +51,15 @@ export function AdminCategoriesPage() {
     await refetch();
   };
 
-  const handleDelete = async (id: number) => {
-    if (confirm('Are you sure you want to delete this category?')) {
-      await deleteCategory(id);
-      await refetch();
-    }
+  const handleDelete = (id: number, name: string) => {
+    setDeleteConfirm({ id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    await deleteCategory(deleteConfirm.id);
+    setDeleteConfirm(null);
+    await refetch();
   };
 
   const resetForm = () => {
@@ -85,28 +91,31 @@ export function AdminCategoriesPage() {
   return (
     <Container size="xl" py="xl">
       <Stack gap="lg">
-        <PageHeader title="Category Management" />
-
-        <Group justify="flex-end">
-          <Button
-            variant="default"
-            onClick={() => refetch()}
-            leftSection={<IconRefresh size={16} />}
-            radius="md"
-          >
-            Refresh
-          </Button>
-          <Button
-            leftSection={<IconPlus size={16} />}
-            onClick={() => {
-              resetForm();
-              setModalOpen(true);
-            }}
-            radius="md"
-          >
-            Add Category
-          </Button>
-        </Group>
+        <PageHeader
+          title="Category Management"
+          actions={
+            <Group>
+              <Button
+                variant="default"
+                onClick={() => refetch()}
+                leftSection={<IconRefresh size={16} />}
+                radius="md"
+              >
+                Refresh
+              </Button>
+              <Button
+                leftSection={<IconPlus size={16} />}
+                onClick={() => {
+                  resetForm();
+                  setModalOpen(true);
+                }}
+                radius="md"
+              >
+                Add Category
+              </Button>
+            </Group>
+          }
+        />
 
         <Paper withBorder p="md" radius="lg">
           {categories?.length === 0 ? (
@@ -132,11 +141,9 @@ export function AdminCategoriesPage() {
                       <Text size="sm">{index + 1}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <Group gap="xs">
-                        <Badge color={category.color || 'gray'} size="lg" radius="md">
-                          {category.name}
-                        </Badge>
-                      </Group>
+                      <Badge color={category.color || 'gray'} size="lg" radius="md">
+                        {category.name}
+                      </Badge>
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm">{category.icon || '-'}</Text>
@@ -169,7 +176,7 @@ export function AdminCategoriesPage() {
                           size="sm"
                           color="red"
                           variant="subtle"
-                          onClick={() => handleDelete(category.id)}
+                          onClick={() => handleDelete(category.id, category.name)}
                         >
                           <IconTrash size={16} />
                         </ActionIcon>
@@ -230,6 +237,17 @@ export function AdminCategoriesPage() {
           </Group>
         </Stack>
       </Modal>
+
+      {/* Delete confirmation */}
+      <ConfirmModal
+        opened={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={confirmDelete}
+        title="Delete Category"
+        message={`Are you sure you want to delete the category "${deleteConfirm?.name}"? This may affect events using this category.`}
+        confirmLabel="Delete"
+        confirmColor="red"
+      />
     </Container>
   );
 }

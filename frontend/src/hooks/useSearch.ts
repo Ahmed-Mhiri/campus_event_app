@@ -1,8 +1,8 @@
 // src/hooks/useSearch.ts
 import { useState, useEffect } from 'react';
-import { useDebounce } from './useDebounce';
 import { searchApi } from '@/api/searchApi';
 import type { SearchSuggestion } from '@/types';
+import { useDebounce } from './useDebounce';
 
 export function useSearch(query: string, type: 'ALL' | 'EVENT' | 'CATEGORY' | 'USER' | 'LOCATION' = 'ALL') {
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);

@@ -27,7 +27,8 @@ import {
 } from '@tabler/icons-react';
 import { useAdmin } from '@/hooks/useAdmin';
 import { formatDate } from '@/utils/dateFormatter';
-import { PageHeader } from '@/components/molecules/PageHeader';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import type { User } from '@/types';
 
 export function AdminUsersPage() {
@@ -38,21 +39,14 @@ export function AdminUsersPage() {
   const [trustModalOpen, setTrustModalOpen] = useState(false);
   const [newTrustLevel, setNewTrustLevel] = useState('');
 
-  const {
-    useUsers,
-    updateTrustLevel,
-    flagUser,
-    promoteUser,
-    deleteUser,
-  } = useAdmin();
+  // confirmation states
+  const [flagConfirm, setFlagConfirm] = useState<{ userId: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ userId: string } | null>(null);
+  const [promoteConfirm, setPromoteConfirm] = useState<{ userId: string } | null>(null);
 
-  const { data, isLoading, refetch } = useUsers(
-    search || undefined,
-    trustFilter || undefined,
-    page,
-    20
-  );
+  const { useUsers, updateTrustLevel, flagUser, promoteUser, deleteUser } = useAdmin();
 
+  const { data, isLoading, refetch } = useUsers(search || undefined, trustFilter || undefined, page, 20);
   const users = data?.content || [];
   const totalPages = data?.totalPages || 0;
 
@@ -63,34 +57,36 @@ export function AdminUsersPage() {
   };
 
   const handlePromote = async (userId: string) => {
-    try {
-      await promoteUser({ userId, force: false });
-      await refetch();
-    } catch (error) {
-      // Handle error silently (already shown in hook)
-    }
+    setPromoteConfirm({ userId });
+  };
+
+  const confirmPromote = async () => {
+    if (!promoteConfirm) return;
+    await promoteUser({ userId: promoteConfirm.userId, force: false });
+    setPromoteConfirm(null);
+    await refetch();
   };
 
   const handleFlag = async (userId: string) => {
-    if (confirm('Are you sure you want to flag this user? They will be locked out.')) {
-      try {
-        await flagUser(userId);
-        await refetch();
-      } catch (error) {
-        // Handle error silently
-      }
-    }
+    setFlagConfirm({ userId });
+  };
+
+  const confirmFlag = async () => {
+    if (!flagConfirm) return;
+    await flagUser(flagConfirm.userId);
+    setFlagConfirm(null);
+    await refetch();
   };
 
   const handleDelete = async (userId: string) => {
-    if (confirm('Are you sure? This action cannot be undone.')) {
-      try {
-        await deleteUser(userId);
-        await refetch();
-      } catch (error) {
-        // Handle error silently
-      }
-    }
+    setDeleteConfirm({ userId });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    await deleteUser(deleteConfirm.userId);
+    setDeleteConfirm(null);
+    await refetch();
   };
 
   const openTrustModal = (user: User) => {
@@ -101,13 +97,9 @@ export function AdminUsersPage() {
 
   const confirmTrustUpdate = async () => {
     if (!selectedUser) return;
-    try {
-      await updateTrustLevel({ userId: selectedUser.id, trustLevel: newTrustLevel });
-      setTrustModalOpen(false);
-      await refetch();
-    } catch (error) {
-      // Handle error silently
-    }
+    await updateTrustLevel({ userId: selectedUser.id, trustLevel: newTrustLevel });
+    setTrustModalOpen(false);
+    await refetch();
   };
 
   const trustOptions = [
@@ -277,6 +269,39 @@ export function AdminUsersPage() {
           </Group>
         </Stack>
       </Modal>
+
+      {/* Confirm Promotion */}
+      <ConfirmModal
+        opened={!!promoteConfirm}
+        onClose={() => setPromoteConfirm(null)}
+        onConfirm={confirmPromote}
+        title="Promote to Trusted Host"
+        message="Are you sure you want to promote this user to Trusted Host? They will be able to auto-publish events."
+        confirmLabel="Promote"
+        confirmColor="green"
+      />
+
+      {/* Confirm Flag */}
+      <ConfirmModal
+        opened={!!flagConfirm}
+        onClose={() => setFlagConfirm(null)}
+        onConfirm={confirmFlag}
+        title="Flag User"
+        message="Are you sure you want to flag this user? They will be locked out and their events will be under review."
+        confirmLabel="Flag"
+        confirmColor="orange"
+      />
+
+      {/* Confirm Delete */}
+      <ConfirmModal
+        opened={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={confirmDelete}
+        title="Delete User"
+        message="Are you sure? This action cannot be undone. All user data will be permanently removed."
+        confirmLabel="Delete"
+        confirmColor="red"
+      />
     </Container>
   );
 }

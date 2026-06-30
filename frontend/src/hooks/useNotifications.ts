@@ -2,9 +2,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications as mantineNotifications } from '@mantine/notifications';
 import { notificationsApi } from '@/api/notificationsApi';
+import { useAuthStore } from '@/stores/authStore'; // 👈 IMPORT THIS
 
 export function useNotifications() {
   const queryClient = useQueryClient();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated); // 👈 GET AUTH STATE
 
   // ----- Get notifications (paginated) -----
   const useNotificationsList = (unreadOnly = false, page = 0, size = 20) => {
@@ -16,6 +18,7 @@ export function useNotifications() {
           .then((res) => res.data.data),
       staleTime: 1000 * 30, // 30 seconds
       refetchInterval: 30000, // Poll every 30 seconds
+      enabled: isAuthenticated, // 👈 ONLY RUN IF LOGGED IN
     });
   };
 
@@ -26,6 +29,7 @@ export function useNotifications() {
       queryFn: () => notificationsApi.getUnreadCount().then((res) => res.data.data),
       staleTime: 1000 * 15,
       refetchInterval: 15000, // Poll every 15 seconds
+      enabled: isAuthenticated, // 👈 ONLY RUN IF LOGGED IN
     });
   };
 

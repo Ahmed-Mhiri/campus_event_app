@@ -1,4 +1,3 @@
-// src/components/molecules/SearchBar/SearchBar.tsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Autocomplete, Loader, Group, Text } from '@mantine/core';
@@ -16,7 +15,6 @@ export function SearchBar({ placeholder = 'Search events, users, categories...',
   const [query, setQuery] = useState('');
   const { suggestions, loading } = useSearch(query);
 
-  // Transform suggestions to Mantine Autocomplete format
   const data = suggestions.map((item) => ({
     value: item.value,
     label: item.value,
@@ -56,10 +54,11 @@ export function SearchBar({ placeholder = 'Search events, users, categories...',
       onChange={setQuery}
       data={data}
       onOptionSubmit={handleSelect}
-      leftSection={<IconSearch size={16} />}
-      rightSection={loading ? <Loader size="xs" /> : null}
+      leftSection={<IconSearch size={16} aria-hidden="true" />}
+      rightSection={loading ? <Loader size="xs" aria-label="Loading search results" /> : null}
       size={size}
       radius="xl"
+      aria-label="Search"
       renderOption={({ option }) => {
         const suggestion = suggestions.find((s) => s.value === option.value);
         if (!suggestion) return null;

@@ -1,25 +1,16 @@
 import { Link } from 'react-router-dom';
-import {
-  Card,
-  Image,
-  Text,
-  Group,
-  Badge,
-  Stack,
-  Button,
-  Avatar,
-} from '@mantine/core';
+import { Image, Text, Group, Badge, Button, Avatar } from '@mantine/core';
 import { motion } from 'framer-motion';
-import { IconCalendar, IconMapPin, IconUsers, IconCrown } from '@tabler/icons-react';
+import { IconCalendar, IconMapPin, IconCrown } from '@tabler/icons-react';
 import { formatDate } from '@/utils/dateFormatter';
 import { getAvatarUrl } from '@/utils/fileHelpers';
 import { ROUTES } from '@/constants/routes';
-
 import { cardHover } from '@/design-system/animations';
 import type { Event } from '@/types';
 import { CategoryChip } from './CategoryChip';
 import { UserTrustBadge } from './UserTrustBadge';
 import { CapacityBar } from './CapacityBar';
+import { Card as UICard } from '@/components/ui/Card';
 
 interface EventCardProps {
   event: Event;
@@ -68,42 +59,23 @@ export function EventCard({ event }: EventCardProps) {
       variants={cardHover}
       style={{ height: '100%' }}
     >
-      <Card
+      <UICard
         component={Link}
         to={ROUTES.EVENT_DETAIL(slug)}
-        shadow="sm"
-        padding="lg"
-        radius="lg"
-        withBorder
-        style={{
-          textDecoration: 'none',
-          color: 'inherit',
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
+        hover
+        className="flex flex-col h-full overflow-hidden text-inherit no-underline"
       >
-        <Card.Section style={{ position: 'relative' }}>
+        {/* Image Section with overlay badges */}
+        <div className="relative">
           <Image
             src={coverImage || '/placeholder-event.jpg'}
             height={200}
             alt={title}
             fallbackSrc="/placeholder-event.jpg"
-            style={{ transition: 'transform 300ms ease' }}
+            className="transition-transform duration-300 group-hover:scale-105"
+            radius="md"
           />
-          <div
-            style={{
-              position: 'absolute',
-              top: 12,
-              right: 12,
-              display: 'flex',
-              gap: 8,
-              flexWrap: 'wrap',
-              justifyContent: 'flex-end',
-            }}
-          >
+          <div className="absolute top-3 right-3 flex gap-1 flex-wrap justify-end">
             {isCancelled && <Badge color="red" variant="filled" radius="md">Cancelled</Badge>}
             {isCompleted && <Badge color="gray" variant="filled" radius="md">Completed</Badge>}
             {status === 'PUBLISHED' && !isFull && <Badge color="green" variant="filled" radius="md">Open</Badge>}
@@ -114,10 +86,17 @@ export function EventCard({ event }: EventCardProps) {
               </Badge>
             )}
           </div>
-        </Card.Section>
+        </div>
 
-        <Stack gap="xs" mt="md" style={{ flex: 1 }}>
-          <Text fw={700} size="lg" lineClamp={2} lh={1.3}>
+        {/* Content */}
+        <div className="flex flex-col flex-1 gap-2 mt-3">
+          <Text
+            fw={600}
+            size="xl"
+            lineClamp={2}
+            lh={1.3}
+            className="tracking-tight"
+          >
             {title}
           </Text>
 
@@ -134,26 +113,29 @@ export function EventCard({ event }: EventCardProps) {
             </Group>
           )}
 
-          <Group gap="xs" c="dimmed">
-            <IconCalendar size={14} />
-            <Text size="sm">{formatDate(startTime)}</Text>
+          <Group gap="xs" wrap="nowrap" c="dimmed" className="text-sm">
+            <Group gap={4} wrap="nowrap">
+              <IconCalendar size={14} className="flex-shrink-0" />
+              <Text size="sm" lineClamp={1}>{formatDate(startTime)}</Text>
+            </Group>
+            <Text size="sm" c="dimmed">·</Text>
+            <Group gap={4} wrap="nowrap" className="min-w-0">
+              <IconMapPin size={14} className="flex-shrink-0" />
+              <Text size="sm" lineClamp={1}>{location}</Text>
+            </Group>
           </Group>
 
-          <Group gap="xs" c="dimmed">
-            <IconMapPin size={14} />
-            <Text size="sm" lineClamp={1}>
-              {location}
-            </Text>
-          </Group>
+          <CapacityBar current={currentRsvpCount} max={maxCapacity} />
 
-          <Group gap="xs" align="center" mt="auto" pt="sm">
-            <Avatar src={avatarSrc} size={28} radius="xl" alt={host.displayName} />
+          <Group gap="xs" align="center" className="mt-auto pt-3">
+            <Avatar src={avatarSrc} size={24} radius="xl" alt={host.displayName} />
             <Text
               component={Link}
               to={ROUTES.USER_PROFILE(host.id)}
-              size="sm"
+              size="xs"
               fw={500}
-              style={{ textDecoration: 'none', color: 'inherit' }}
+              c="dimmed"
+              className="no-underline hover:text-brand-600"
               onClick={(e) => e.stopPropagation()}
             >
               {host.displayName}
@@ -161,36 +143,25 @@ export function EventCard({ event }: EventCardProps) {
             <UserTrustBadge trustLevel={host.trustLevel} size="xs" showLabel={false} />
           </Group>
 
-          {/* FIXED: Removed the unsupported size="sm" prop */}
-          <CapacityBar current={currentRsvpCount} max={maxCapacity} />
-
-          <Group justify="space-between" mt="xs">
-            <Group gap={4}>
-              <IconUsers size={16} />
-              <Text size="sm">
-                {currentRsvpCount} / {maxCapacity}
-              </Text>
-            </Group>
-          </Group>
-
-          <Button
-            size="sm"
-            radius="md"
-            variant={myRsvpStatus === 'GOING' ? 'filled' : 'light'}
-            color={myRsvpStatus === 'GOING' ? 'green' : 'brand'}
-            fullWidth
-            disabled={isCancelled || isCompleted}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              // RSVP action will be handled by parent or later
-            }}
-            style={{ marginTop: 'auto' }}
-          >
-            {rsvpLabel}
-          </Button>
-        </Stack>
-      </Card>
+<Button
+  size="sm"
+  radius="md"
+  variant={myRsvpStatus === 'GOING' ? 'filled' : 'light'}
+  color={myRsvpStatus === 'GOING' ? 'green' : 'brand'}
+  fullWidth
+  disabled={isCancelled || isCompleted}
+  onClick={(e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // RSVP action
+  }}
+  className="mt-2 min-h-[44px]"
+  aria-label={rsvpLabel}
+>
+  {rsvpLabel}
+</Button>
+        </div>
+      </UICard>
     </motion.div>
   );
 }

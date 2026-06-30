@@ -1,17 +1,6 @@
-// src/pages/Auth/ResetPasswordPage.tsx
-
 import { useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import {
-  Container,
-  Paper,
-  Title,
-  PasswordInput,
-  Button,
-  Stack,
-  Text,
-  Anchor,
-} from '@mantine/core';
+import { Container, Paper, Title, PasswordInput, Button, Stack, Text, Anchor } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
@@ -44,7 +33,7 @@ export function ResetPasswordPage() {
           <Stack align="center">
             <Title order={3}>Invalid reset link</Title>
             <Text c="dimmed">No token provided.</Text>
-            <Button component={Link} to={ROUTES.FORGOT_PASSWORD}>
+            <Button component={Link} to={ROUTES.FORGOT_PASSWORD} aria-label="Request new link">
               Request new link
             </Button>
           </Stack>
@@ -59,7 +48,7 @@ export function ResetPasswordPage() {
         <Title order={2} ta="center" mb="lg">
           Set New Password
         </Title>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} aria-label="Reset password form">
           <Stack>
             <PasswordInput
               label="New Password"
@@ -67,6 +56,8 @@ export function ResetPasswordPage() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.currentTarget.value)}
               required
+              aria-label="New password"
+              radius="md"
             />
             <PasswordInput
               label="Confirm New Password"
@@ -74,14 +65,23 @@ export function ResetPasswordPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.currentTarget.value)}
               required
+              aria-label="Confirm new password"
+              radius="md"
             />
-            <Button type="submit" loading={isResetting} fullWidth mt="sm">
+            <Button
+              type="submit"
+              loading={isResetting}
+              fullWidth
+              mt="sm"
+              radius="md"
+              aria-label="Reset password"
+            >
               Reset Password
             </Button>
           </Stack>
         </form>
         <Text size="sm" ta="center" mt="md">
-          <Anchor component={Link} to={ROUTES.LOGIN}>
+          <Anchor component={Link} to={ROUTES.LOGIN} aria-label="Back to login">
             Back to Login
           </Anchor>
         </Text>

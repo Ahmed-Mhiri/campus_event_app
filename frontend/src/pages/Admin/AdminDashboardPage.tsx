@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import {
   Container,
-  Title,
   Stack,
   SimpleGrid,
   Paper,
@@ -26,7 +25,8 @@ import {
 import { useAdmin } from '@/hooks/useAdmin';
 import { ROUTES } from '@/constants/routes';
 import { formatDate } from '@/utils/dateFormatter';
-import { PageHeader } from '@/components/molecules/PageHeader';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { Card } from '@/components/ui/Card';
 
 export function AdminDashboardPage() {
   const { useDashboard } = useAdmin();
@@ -63,7 +63,7 @@ export function AdminDashboardPage() {
       value: stats.openReportsCount,
       color: 'red',
       icon: <IconAlertCircle size={24} />,
-      link: '/admin/reports',
+      link: ROUTES.ADMIN_REPORTS,
     },
     {
       title: 'Total Users',
@@ -86,17 +86,15 @@ export function AdminDashboardPage() {
       <Stack gap="lg">
         <PageHeader title="Admin Dashboard" />
 
-        {/* Stats Cards */}
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
           {statCards.map((card) => (
-            <Paper
+            <Card
               key={card.title}
-              withBorder
-              p="md"
-              radius="lg"
+              variant="elevated"
+              hover
               component={Link}
               to={card.link}
-              style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
+              className="no-underline"
             >
               <Group justify="space-between">
                 <div>
@@ -107,14 +105,14 @@ export function AdminDashboardPage() {
                   {card.icon}
                 </Badge>
               </Group>
-            </Paper>
+            </Card>
           ))}
         </SimpleGrid>
 
         {/* Recent Pending Events */}
-        <Paper withBorder p="md" radius="lg">
+        <Card variant="default">
           <Group justify="space-between" mb="md">
-            <Title order={4}>Recent Pending Events</Title>
+            <Text fw={600} size="lg">Recent Pending Events</Text>
             <Button component={Link} to={ROUTES.ADMIN_EVENTS} variant="subtle" size="xs" radius="md">
               View all
             </Button>
@@ -180,13 +178,13 @@ export function AdminDashboardPage() {
               </Table.Tbody>
             </Table>
           )}
-        </Paper>
+        </Card>
 
         {/* Recent Reports */}
-        <Paper withBorder p="md" radius="lg">
+        <Card variant="default">
           <Group justify="space-between" mb="md">
-            <Title order={4}>Recent Reports</Title>
-            <Button component={Link} to="/admin/reports" variant="subtle" size="xs" radius="md">
+            <Text fw={600} size="lg">Recent Reports</Text>
+            <Button component={Link} to={ROUTES.ADMIN_REPORTS} variant="subtle" size="xs" radius="md">
               View all
             </Button>
           </Group>
@@ -223,7 +221,7 @@ export function AdminDashboardPage() {
               </Table.Tbody>
             </Table>
           )}
-        </Paper>
+        </Card>
       </Stack>
     </Container>
   );

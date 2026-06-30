@@ -85,12 +85,12 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
             LEFT JOIN e.eventCategories ec
             WHERE e.status = :status
               AND e.deletedAt IS NULL
-              AND (:categoryId IS NULL OR ec.category.id = :categoryId)
-              AND (:dateFrom IS NULL OR e.startTime >= :dateFrom)
-              AND (:dateTo IS NULL OR e.endTime <= :dateTo)
-              AND (:location IS NULL OR LOWER(e.location) LIKE LOWER(CONCAT('%', :location, '%')))
-              AND (:q IS NULL OR LOWER(e.title) LIKE LOWER(CONCAT('%', :q, '%'))
-                            OR LOWER(e.description) LIKE LOWER(CONCAT('%', :q, '%')))
+              AND (cast(:categoryId as integer) IS NULL OR ec.category.id = :categoryId)
+              AND (cast(:dateFrom as timestamp) IS NULL OR e.startTime >= :dateFrom)
+              AND (cast(:dateTo as timestamp) IS NULL OR e.endTime <= :dateTo)
+              AND (cast(:location as string) IS NULL OR LOWER(e.location) LIKE LOWER(CONCAT('%', cast(:location as string), '%')))
+              AND (cast(:q as string) IS NULL OR LOWER(e.title) LIKE LOWER(CONCAT('%', cast(:q as string), '%'))
+                            OR LOWER(e.description) LIKE LOWER(CONCAT('%', cast(:q as string), '%')))
             """)
     Page<Event> findPublishedWithFilters(
             @Param("status") EventStatus status,
@@ -139,14 +139,14 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     /* -------------------- Search Suggestions -------------------- */
 
     @Query("SELECT e FROM Event e WHERE e.status = 'PUBLISHED' " +
-           "AND LOWER(e.title) LIKE LOWER(CONCAT('%', :query, '%')) " +
+           "AND LOWER(e.title) LIKE LOWER(CONCAT('%', cast(:query as string), '%')) " +
            "AND e.deletedAt IS NULL")
     List<Event> findTop5ByTitleContainingIgnoreCaseAndStatusPublished(
             @Param("query") String query, Pageable pageable);
 
     @Query("SELECT DISTINCT e.location FROM Event e " +
            "WHERE e.status = 'PUBLISHED' " +
-           "AND LOWER(e.location) LIKE LOWER(CONCAT('%', :query, '%')) " +
+           "AND LOWER(e.location) LIKE LOWER(CONCAT('%', cast(:query as string), '%')) " +
            "AND e.deletedAt IS NULL")
     List<String> findTop5DistinctLocationsByLocationContainingIgnoreCase(
             @Param("query") String query, Pageable pageable);

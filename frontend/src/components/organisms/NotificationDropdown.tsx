@@ -1,4 +1,3 @@
-// src/components/organisms/NotificationDropdown/NotificationDropdown.tsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -20,33 +19,24 @@ import { formatDate } from '@/utils/dateFormatter';
 import type { Notification } from '@/types';
 
 const notificationIcons: Record<string, React.ReactNode> = {
-  EVENT_APPROVED: <IconCheck size={16} color="green" />,
-  EVENT_REJECTED: <IconX size={16} color="red" />,
-  WAITLIST_PROMOTED: <IconCheck size={16} color="blue" />,
-  NEW_REVIEW: <IconCheck size={16} color="green" />,
-  TRUST_PROMOTED: <IconCheck size={16} color="green" />,
-  EVENT_CANCELLED: <IconX size={16} color="red" />,
-  RSVP_CANCELLED: <IconX size={16} color="orange" />,
-  REPORT_RESOLVED: <IconCheck size={16} color="green" />,
+  EVENT_APPROVED: <IconCheck size={16} color="green" aria-hidden="true" />,
+  EVENT_REJECTED: <IconX size={16} color="red" aria-hidden="true" />,
+  WAITLIST_PROMOTED: <IconCheck size={16} color="blue" aria-hidden="true" />,
+  NEW_REVIEW: <IconCheck size={16} color="green" aria-hidden="true" />,
+  TRUST_PROMOTED: <IconCheck size={16} color="green" aria-hidden="true" />,
+  EVENT_CANCELLED: <IconX size={16} color="red" aria-hidden="true" />,
+  RSVP_CANCELLED: <IconX size={16} color="orange" aria-hidden="true" />,
+  REPORT_RESOLVED: <IconCheck size={16} color="green" aria-hidden="true" />,
 };
 
 export function NotificationDropdown() {
   const navigate = useNavigate();
   const [opened, setOpened] = useState(false);
 
-  // Get the hook methods
-  const {
-    useNotificationsList,
-    useUnreadCount,
-    markRead,
-    markAllRead,
-    deleteNotification,
-  } = useNotifications();
+  const { useNotificationsList, useUnreadCount, markRead, markAllRead, deleteNotification } =
+    useNotifications();
 
-  // Fetch the notification list (unreadOnly = false, page = 0, size = 20)
   const { data, isLoading, refetch } = useNotificationsList(false, 0, 20);
-  
-  // Fetch unread count – returns number directly
   const { data: unreadCount } = useUnreadCount();
 
   const notifications = data?.content || [];
@@ -86,8 +76,13 @@ export function NotificationDropdown() {
       withArrow
     >
       <Popover.Target>
-        <ActionIcon variant="subtle" onClick={() => setOpened(!opened)} pos="relative">
-          <IconBell size={22} />
+        <ActionIcon
+          variant="subtle"
+          onClick={() => setOpened(!opened)}
+          pos="relative"
+          aria-label="Notifications"
+        >
+          <IconBell size={22} aria-hidden="true" />
           {(unreadCount ?? 0) > 0 && (
             <Badge
               color="red"
@@ -99,6 +94,7 @@ export function NotificationDropdown() {
                 right: -4,
                 pointerEvents: 'none',
               }}
+              aria-label={`${unreadCount} unread notifications`}
             >
               {unreadCount && unreadCount > 99 ? '99+' : unreadCount}
             </Badge>
@@ -110,7 +106,12 @@ export function NotificationDropdown() {
         <Group justify="space-between" p="sm" style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}>
           <Text fw={600} size="sm">Notifications</Text>
           {(unreadCount ?? 0) > 0 && (
-            <Button variant="subtle" size="compact-xs" onClick={handleMarkAllRead}>
+            <Button
+              variant="subtle"
+              size="compact-xs"
+              onClick={handleMarkAllRead}
+              aria-label="Mark all as read"
+            >
               Mark all read
             </Button>
           )}
@@ -119,7 +120,7 @@ export function NotificationDropdown() {
         <ScrollArea h={400}>
           {isLoading ? (
             <Center py="xl">
-              <Loader size="sm" />
+              <Loader size="sm" aria-label="Loading notifications" />
             </Center>
           ) : notifications.length === 0 ? (
             <Center py="xl">
@@ -138,10 +139,13 @@ export function NotificationDropdown() {
                     transition: 'background-color 0.2s',
                   }}
                   onClick={() => handleNavigate(notification)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === 'Enter' && handleNavigate(notification)}
                 >
                   <Group wrap="nowrap" gap="xs">
                     <Avatar size="sm" radius="xl">
-                      {notificationIcons[notification.type] || <IconBell size={16} />}
+                      {notificationIcons[notification.type] || <IconBell size={16} aria-hidden="true" />}
                     </Avatar>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <Text size="sm" fw={notification.isRead ? 400 : 600} lineClamp={1}>
@@ -151,7 +155,7 @@ export function NotificationDropdown() {
                         {notification.message}
                       </Text>
                       <Group gap={4} mt={2}>
-                        <IconClock size={10} />
+                        <IconClock size={10} aria-hidden="true" />
                         <Text size="xs" c="dimmed">
                           {formatDate(notification.createdAt)}
                         </Text>
@@ -167,8 +171,9 @@ export function NotificationDropdown() {
                             e.stopPropagation();
                             handleMarkRead(notification.id);
                           }}
+                          aria-label="Mark as read"
                         >
-                          <IconCheck size={14} />
+                          <IconCheck size={14} aria-hidden="true" />
                         </ActionIcon>
                       )}
                       <ActionIcon
@@ -179,8 +184,9 @@ export function NotificationDropdown() {
                           e.stopPropagation();
                           handleDelete(notification.id);
                         }}
+                        aria-label="Delete notification"
                       >
-                        <IconX size={14} />
+                        <IconX size={14} aria-hidden="true" />
                       </ActionIcon>
                     </Group>
                   </Group>

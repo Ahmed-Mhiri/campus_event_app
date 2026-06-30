@@ -1,5 +1,6 @@
 package de.fhdortmund.mystudyapp.common.security;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
@@ -16,7 +17,6 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.UnsupportedJwtException;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +38,9 @@ public class JwtUtil {
 
     @PostConstruct
     public void init() {
-        byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
+        // FIX 1: Read as raw UTF-8 bytes instead of forcing Base64 decoding. 
+        // This allows you to use dashes, exclamation marks, and normal text in your .env
+        byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
         this.key = Keys.hmacShaKeyFor(keyBytes);
     }
 
@@ -54,7 +56,7 @@ public class JwtUtil {
                 .claim("type", "access")
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(now.plusMillis(accessExpirationMs)))
-                .signWith(key, SignatureAlgorithm.HS512)
+                .signWith(key, SignatureAlgorithm.HS256) // FIX 2: HS256 matches your key length
                 .compact();
     }
 
@@ -68,7 +70,7 @@ public class JwtUtil {
                 .claim("type", "refresh")
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(now.plusMillis(refreshExpirationMs)))
-                .signWith(key, SignatureAlgorithm.HS512)
+                .signWith(key, SignatureAlgorithm.HS256) // FIX 2: HS256 matches your key length
                 .compact();
     }
 

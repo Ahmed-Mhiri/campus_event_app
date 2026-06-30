@@ -8,8 +8,10 @@ interface CapacityBarProps {
 }
 
 export function CapacityBar({ current, max, showLabels = true }: CapacityBarProps) {
-  const percentage = Math.min((current / max) * 100, 100);
-  const isFull = current >= max;
+  // max <= 0 would otherwise divide by zero (NaN/Infinity) and break the
+  // Progress bar's rendering — treat it as visually full rather than crash.
+  const percentage = max > 0 ? Math.min((current / max) * 100, 100) : 100;
+  const isFull = max <= 0 || current >= max;
   const isAlmostFull = percentage >= 80 && !isFull;
 
   let color = 'blue';

@@ -1,5 +1,3 @@
-// src/pages/Auth/VerifyEmailPage.tsx
-
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Container, Paper, Title, Text, Loader, Stack } from '@mantine/core';
@@ -35,7 +33,7 @@ export function VerifyEmailPage() {
         <Stack align="center" gap="md">
           {isVerifying ? (
             <>
-              <Loader size="lg" />
+              <Loader size="lg" aria-label="Verifying" />
               <Title order={3}>Verifying your email...</Title>
               <Text c="dimmed">Please wait while we confirm your account.</Text>
             </>

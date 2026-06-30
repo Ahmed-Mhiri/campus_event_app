@@ -5,15 +5,12 @@ import { Notifications } from '@mantine/notifications';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
-// Import Mantine styles
 import '@mantine/core/styles.css';
 import '@mantine/dates/styles.css';
 import '@mantine/notifications/styles.css';
 
-// Global CSS with design tokens
-import './design-system/global.css';
+import './design-system/global.css';   // ← this now includes Tailwind directives
 
-// Your app and theme
 import App from './App';
 import { theme } from './design-system/mantineTheme';
 import { queryClient } from './lib/queryClient';

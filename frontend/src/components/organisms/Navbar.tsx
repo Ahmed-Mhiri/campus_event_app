@@ -48,7 +48,7 @@ export function Navbar() {
       {/* Logo with icon */}
       <Group gap="xs" wrap="nowrap">
         <ThemeIcon size={36} radius="md" color="brand" variant="filled">
-          <IconSchool size={20} />
+          <IconSchool size={20} aria-hidden="true" />
         </ThemeIcon>
         <Text
           component={Link}
@@ -82,7 +82,7 @@ export function Navbar() {
           radius="md"
           aria-label="Toggle color scheme"
         >
-          {colorScheme === 'dark' ? <IconSun size={20} /> : <IconMoon size={20} />}
+          {colorScheme === 'dark' ? <IconSun size={20} aria-hidden="true" /> : <IconMoon size={20} aria-hidden="true" />}
         </ActionIcon>
 
         <NotificationDropdown />
@@ -90,7 +90,7 @@ export function Navbar() {
         {user ? (
           <Menu position="bottom-end" withArrow offset={4}>
             <Menu.Target>
-              <UnstyledButton style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <UnstyledButton style={{ display: 'flex', alignItems: 'center', gap: 8 }} aria-label="User menu">
                 <Avatar
                   src={user.profileImageUrl || getAvatarUrl(user.id)}
                   radius="xl"
@@ -112,20 +112,20 @@ export function Navbar() {
               </Menu.Label>
               <Menu.Divider />
               <Menu.Item
-                leftSection={<IconUser size={14} />}
+                leftSection={<IconUser size={14} aria-hidden="true" />}
                 onClick={() => navigate(ROUTES.PROFILE)}
               >
                 My Profile
               </Menu.Item>
               <Menu.Item
-                leftSection={<IconCalendar size={14} />}
+                leftSection={<IconCalendar size={14} aria-hidden="true" />}
                 onClick={() => navigate(ROUTES.MY_EVENTS)}
               >
                 My Events
               </Menu.Item>
               {user.role === 'ADMIN' && (
                 <Menu.Item
-                  leftSection={<IconSettings size={14} />}
+                  leftSection={<IconSettings size={14} aria-hidden="true" />}
                   onClick={() => navigate(ROUTES.ADMIN_DASHBOARD)}
                 >
                   Admin Dashboard
@@ -134,7 +134,7 @@ export function Navbar() {
               <Menu.Divider />
               <Menu.Item
                 color="red"
-                leftSection={<IconLogout size={14} />}
+                leftSection={<IconLogout size={14} aria-hidden="true" />}
                 onClick={handleLogout}
               >
                 Logout
@@ -160,7 +160,7 @@ export function Navbar() {
             onClick={() => setMobileMenuOpen(true)}
             aria-label="Open menu"
           >
-            <IconMenu2 size={24} />
+            <IconMenu2 size={24} aria-hidden="true" />
           </ActionIcon>
         )}
       </Group>
@@ -171,6 +171,7 @@ export function Navbar() {
         onClose={() => setMobileMenuOpen(false)}
         size="xs"
         padding="md"
+        aria-label="Mobile navigation menu"
       >
         <Stack gap="md">
           <SearchBar placeholder="Search..." />

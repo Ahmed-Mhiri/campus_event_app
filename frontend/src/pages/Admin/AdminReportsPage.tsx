@@ -18,7 +18,8 @@ import {
 import { IconCheck, IconX, IconEye } from '@tabler/icons-react';
 import { useAdmin } from '@/hooks/useAdmin';
 import { formatDate } from '@/utils/dateFormatter';
-import { PageHeader } from '@/components/molecules/PageHeader';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import type { Report } from '@/types';
 
 export function AdminReportsPage() {
@@ -26,6 +27,7 @@ export function AdminReportsPage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [reasonFilter, setReasonFilter] = useState<string | null>(null);
   const [resolveModal, setResolveModal] = useState<{ report: Report; flag: boolean } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ reportId: string } | null>(null);
 
   const { useAdminReports, resolveReport, deleteReport } = useAdmin();
   const { data, isLoading, refetch } = useAdminReports({
@@ -57,11 +59,15 @@ export function AdminReportsPage() {
     setResolveModal(null);
   };
 
-  const handleDelete = async (reportId: string) => {
-    if (confirm('Delete this report?')) {
-      await deleteReport(reportId);
-      await refetch();
-    }
+  const handleDelete = (reportId: string) => {
+    setDeleteConfirm({ reportId });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    await deleteReport(deleteConfirm.reportId);
+    setDeleteConfirm(null);
+    await refetch();
   };
 
   if (isLoading) return <Center h="50vh"><Loader size="xl" /></Center>;
@@ -205,6 +211,17 @@ export function AdminReportsPage() {
           </Group>
         </Stack>
       </Modal>
+
+      {/* Delete confirmation */}
+      <ConfirmModal
+        opened={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={confirmDelete}
+        title="Delete Report"
+        message="Are you sure you want to delete this report? This action cannot be undone."
+        confirmLabel="Delete"
+        confirmColor="red"
+      />
     </Container>
   );
 }

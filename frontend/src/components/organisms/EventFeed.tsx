@@ -19,6 +19,7 @@ export function EventFeed({ filters = {} }: EventFeedProps) {
     triggerOnce: false,
   });
 
+  // Trigger fetch when the sentinel becomes visible
   if (inView && hasNextPage && !isFetchingNextPage) {
     fetchNextPage();
   }
@@ -38,7 +39,9 @@ export function EventFeed({ filters = {} }: EventFeedProps) {
   if (error) {
     return (
       <Center p="xl">
-        <Text c="red">Failed to load events: {(error as Error).message}</Text>
+        <Text c="red" role="alert">
+          Failed to load events: {(error as Error).message}
+        </Text>
       </Center>
     );
   }
@@ -62,11 +65,11 @@ export function EventFeed({ filters = {} }: EventFeedProps) {
       </SimpleGrid>
 
       {/* Sentinel for infinite scroll */}
-      <div ref={ref} style={{ height: 20 }} />
+      <div ref={ref} style={{ height: 20 }} aria-hidden="true" />
 
       {isFetchingNextPage && (
         <Center>
-          <Loader size="sm" />
+          <Loader size="sm" aria-label="Loading more events" />
         </Center>
       )}
 

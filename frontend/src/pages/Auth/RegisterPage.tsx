@@ -1,12 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Paper,
   Title,
   TextInput,
   PasswordInput,
-  Button,
-  Stack,
   Text,
   Anchor,
   Progress,
@@ -16,6 +13,8 @@ import { notifications } from '@mantine/notifications';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
 import { EMAIL_REGEX, DISPLAY_NAME_MIN, DISPLAY_NAME_MAX } from '@/constants/validation';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 
 function getPasswordStrength(password: string) {
   let score = 0;
@@ -59,22 +58,24 @@ export function RegisterPage() {
   };
 
   return (
-    <Box
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg, var(--app-primary) 0%, #a855f7 100%)',
-        padding: '24px',
-      }}
-    >
-      <Paper radius="lg" p="xl" withBorder shadow="xl" maw={480} w="100%">
-        <Title order={2} ta="center" mb="lg" className="app-gradient-text">
-          Create Account
-        </Title>
-        <form onSubmit={handleSubmit}>
-          <Stack>
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 px-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="w-12 h-12 rounded-xl bg-brand-600 flex items-center justify-center mx-auto mb-4">
+            <span className="text-white font-bold text-xl" aria-hidden="true">
+              M
+            </span>
+          </div>
+          <Title order={2} className="text-2xl font-bold text-slate-900 dark:text-white">
+            Create Account
+          </Title>
+          <Text className="text-slate-500 dark:text-slate-400 mt-1">
+            Join the campus community
+          </Text>
+        </div>
+
+        <Card variant="elevated">
+          <form onSubmit={handleSubmit} className="space-y-4" aria-label="Registration form">
             <TextInput
               label="Display Name"
               placeholder="Your name"
@@ -84,6 +85,7 @@ export function RegisterPage() {
               minLength={DISPLAY_NAME_MIN}
               maxLength={DISPLAY_NAME_MAX}
               radius="md"
+              aria-label="Display name"
             />
             <TextInput
               label="University Email"
@@ -95,6 +97,7 @@ export function RegisterPage() {
               required
               type="email"
               radius="md"
+              aria-label="University email"
             />
             <PasswordInput
               label="Password"
@@ -103,6 +106,7 @@ export function RegisterPage() {
               onChange={(e) => setPassword(e.currentTarget.value)}
               required
               radius="md"
+              aria-label="Password"
             />
             {password && (
               <Box>
@@ -123,19 +127,35 @@ export function RegisterPage() {
               onChange={(e) => setConfirmPassword(e.currentTarget.value)}
               required
               radius="md"
+              aria-label="Confirm password"
             />
-            <Button type="submit" loading={isRegistering} fullWidth mt="sm" radius="md">
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              isLoading={isRegistering}
+              className="w-full min-h-[44px]"
+              aria-label="Create your account"
+            >
               Register
             </Button>
-          </Stack>
-        </form>
-        <Text size="sm" ta="center" mt="md">
-          Already have an account?{' '}
-          <Anchor component={Link} to={ROUTES.LOGIN}>
-            Log In
-          </Anchor>
-        </Text>
-      </Paper>
-    </Box>
+          </form>
+
+          <div className="mt-6 text-center">
+            <Text size="sm" className="text-slate-500">
+              Already have an account?{' '}
+              <Anchor
+                component={Link}
+                to={ROUTES.LOGIN}
+                className="text-brand-600 hover:text-brand-700"
+                aria-label="Sign in"
+              >
+                Log In
+              </Anchor>
+            </Text>
+          </div>
+        </Card>
+      </div>
+    </div>
   );
 }

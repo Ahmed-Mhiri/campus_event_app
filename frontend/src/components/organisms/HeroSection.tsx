@@ -1,5 +1,5 @@
-import { Box, Container, Stack, Title, Text, Badge, Button, Paper } from '@mantine/core';
-import { IconSparkles, IconPlus } from '@tabler/icons-react';
+import { Badge, Button } from '@mantine/core';
+import { IconSparkles, IconPlus, IconArrowRight } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/constants/routes';
 import { SearchBar } from '../molecules/SearchBar';
@@ -8,81 +8,49 @@ export function HeroSection() {
   const navigate = useNavigate();
 
   return (
-    <Box
-      py={{ base: '3rem', md: '5rem' }}
-      style={{
-        background: 'linear-gradient(135deg, var(--app-primary) 0%, #a855f7 50%, #ec4899 100%)',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Decorative circles */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '-20%',
-          right: '-10%',
-          width: 400,
-          height: 400,
-          borderRadius: '50%',
-          background: 'rgba(255,255,255,0.1)',
-          filter: 'blur(60px)',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '-30%',
-          left: '-10%',
-          width: 500,
-          height: 500,
-          borderRadius: '50%',
-          background: 'rgba(255,255,255,0.08)',
-          filter: 'blur(80px)',
-        }}
-      />
+    <section className="relative overflow-hidden bg-slate-900" aria-label="Hero banner">
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-brand-900/30 via-transparent to-transparent" />
 
-      <Container size="xl" px={{ base: 16, sm: 24, md: 32 }} style={{ position: 'relative', zIndex: 1 }}>
-        <Stack align="center" gap="xl">
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brand-600/5 rounded-full blur-3xl" aria-hidden="true" />
+      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-600/5 rounded-full blur-3xl" aria-hidden="true" />
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 lg:py-32">
+        <div className="flex flex-col items-center text-center space-y-8">
           <Badge
             size="lg"
             radius="xl"
-            variant="filled"
-            color="white"
-            c="brand"
-            leftSection={<IconSparkles size={14} />}
+            variant="light"
+            color="brand"
+            leftSection={<IconSparkles size={14} aria-hidden="true" />}
+            className="bg-brand-500/10 text-brand-300 border border-brand-500/20"
           >
             Campus Event Platform
           </Badge>
 
-          <Title
-            order={1}
-            size="h1"
-            ta="center"
-            c="white"
-            style={{ maxWidth: 700, textWrap: 'balance' }}
-          >
-            Discover Amazing Events at Your University
-          </Title>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white tracking-tight max-w-3xl">
+            Discover Amazing Events at{' '}
+            <span className="text-brand-400">Your University</span>
+          </h1>
 
-          <Text size="xl" ta="center" c="rgba(255,255,255,0.9)" maw={600}>
+          <p className="text-lg md:text-xl text-slate-400 max-w-2xl">
             Find events, connect with students, and make the most of your campus life.
-          </Text>
+          </p>
 
-          <Box maw={600} w="100%">
-            <Paper radius="xl" p="xs" shadow="xl" withBorder>
+          <div className="w-full max-w-xl">
+            <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-2">
               <SearchBar size="lg" placeholder="Search events, users, categories..." />
-            </Paper>
-          </Box>
+            </div>
+          </div>
 
-          <Stack gap="sm" align="center">
+          <div className="flex flex-col sm:flex-row gap-4">
             <Button
               size="lg"
               radius="xl"
-              variant="white"
-              color="brand"
-              leftSection={<IconPlus size={18} />}
+              className="bg-white text-slate-900 hover:bg-slate-100 font-semibold"
+              leftSection={<IconPlus size={18} aria-hidden="true" />}
               onClick={() => navigate(ROUTES.CREATE_EVENT)}
+              aria-label="Create a new event"
             >
               Create Event
             </Button>
@@ -90,14 +58,16 @@ export function HeroSection() {
               size="lg"
               radius="xl"
               variant="outline"
-              color="white"
+              className="border-white/20 text-white hover:bg-white/10"
+              rightSection={<IconArrowRight size={18} aria-hidden="true" />}
               onClick={() => navigate(ROUTES.EVENTS)}
+              aria-label="Browse all events"
             >
               Browse Events
             </Button>
-          </Stack>
-        </Stack>
-      </Container>
-    </Box>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }

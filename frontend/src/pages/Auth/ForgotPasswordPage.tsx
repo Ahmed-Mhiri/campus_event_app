@@ -1,5 +1,3 @@
-// src/pages/Auth/ForgotPasswordPage.tsx
-
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Container, Paper, Title, TextInput, Button, Stack, Text, Anchor } from '@mantine/core';
@@ -24,7 +22,7 @@ export function ForgotPasswordPage() {
         <Text size="sm" c="dimmed" ta="center" mb="md">
           Enter your university email and we'll send you a reset link.
         </Text>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} aria-label="Forgot password form">
           <Stack>
             <TextInput
               label="University Email"
@@ -33,15 +31,24 @@ export function ForgotPasswordPage() {
               onChange={(e) => setEmail(e.currentTarget.value)}
               required
               type="email"
+              aria-label="University email"
+              radius="md"
             />
-            <Button type="submit" loading={isResetting} fullWidth mt="sm">
+            <Button
+              type="submit"
+              loading={isResetting}
+              fullWidth
+              mt="sm"
+              radius="md"
+              aria-label="Send reset link"
+            >
               Send Reset Link
             </Button>
           </Stack>
         </form>
         <Text size="sm" ta="center" mt="md">
           Remember your password?{' '}
-          <Anchor component={Link} to={ROUTES.LOGIN}>
+          <Anchor component={Link} to={ROUTES.LOGIN} aria-label="Back to login">
             Log In
           </Anchor>
         </Text>

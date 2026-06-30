@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { IconSearch, IconCalendarPlus, IconUsers } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { EventCard } from '@/components/molecules/EventCard';
-import { SkeletonCard } from '@/components/atoms/SkeletonCard';
+import { CardSkeleton } from '@/components/ui/Skeleton';
 import { Section } from '@/components/atoms/Section';
 import { HeroSection } from '@/components/organisms/HeroSection';
 import { useFeaturedEvents } from '@/hooks/useEvents';
@@ -21,10 +21,8 @@ export function HomePage() {
 
   return (
     <Stack gap={0}>
-      {/* HERO SECTION */}
       <HeroSection />
 
-      {/* CATEGORIES SECTION */}
       <Section title="Browse by Category" subtitle="Find events that match your interests">
         {categoriesLoading ? (
           <Group gap="sm">
@@ -52,7 +50,6 @@ export function HomePage() {
         )}
       </Section>
 
-      {/* FEATURED EVENTS SECTION */}
       <Section
         title="Featured Events"
         subtitle="Hand-picked events you don't want to miss"
@@ -61,7 +58,7 @@ export function HomePage() {
         {featuredLoading ? (
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
             {Array.from({ length: 6 }).map((_, i) => (
-              <SkeletonCard key={i} />
+              <CardSkeleton key={i} />
             ))}
           </SimpleGrid>
         ) : featuredEvents.length === 0 ? (
@@ -80,7 +77,6 @@ export function HomePage() {
         )}
       </Section>
 
-      {/* HOW IT WORKS SECTION */}
       <Section title="How It Works">
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xl">
           {[
