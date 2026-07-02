@@ -170,7 +170,7 @@ public class EventService {
         return eventMapper.toDto(saved, user.getId());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public EventDto getEvent(UUID eventId, String currentUserEmail) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
@@ -210,7 +210,7 @@ public class EventService {
     /**
      * PHASE 2: Get event by slug (public or authenticated).
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public EventDto getEventBySlug(String slug, String currentUserEmail) {
         Event event = eventRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Event", "slug", slug));
