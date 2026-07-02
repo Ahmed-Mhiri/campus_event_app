@@ -9,14 +9,13 @@ export const EMAIL_REGEX =
   /^(?!.*@(gmx|web|gmail|yahoo|hotmail|outlook|icloud|posteo|mailbox)\.(de|com|net|org)$)[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.(de|edu)$/;
 
 /**
- * Password must contain at least:
- * - 8 characters
- * - one uppercase letter
- * - one lowercase letter
- * - one digit
- * - one special character (@$!%*?&)
+ * Optimal Password Regex:
+ * - Minimum 8 characters
+ * - 1 uppercase, 1 lowercase, 1 number
+ * - 1 special character (literally anything that isn't a letter or number)
+ * - Allows spaces, emojis, and all punctuation
  */
-export const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+export const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
 /**
  * Display name: 2–50 characters

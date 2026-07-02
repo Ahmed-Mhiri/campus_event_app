@@ -5,7 +5,7 @@
 import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore';
 import { ROUTES } from '@/constants/routes';
-import { notifications } from '@mantine/notifications'; // 👈 added for 429 handling
+import { notifications } from '@mantine/notifications'; 
 
 // ── IMPORTANT ──
 // Make sure VITE_API_URL is set in your frontend .env file.
@@ -38,7 +38,7 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // 👇 NEW: Handle rate limiting (429)
+    // Handle rate limiting (429)
     if (error.response?.status === 429) {
       const retryAfter = error.response.headers['retry-after'] || 60;
       notifications.show({
@@ -49,7 +49,7 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // If 401 and we haven't retried yet
+    // Only trigger refresh on 401 (Unauthorized) to prevent instant logout loops from 403s
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 

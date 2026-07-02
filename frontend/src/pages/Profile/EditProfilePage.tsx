@@ -7,7 +7,7 @@ import {
   Button,
   Avatar,
   Group,
-  FileInput,
+  FileButton, // ✅ Swapped FileInput for FileButton
   Divider,
   Text,
 } from '@mantine/core';
@@ -83,20 +83,22 @@ export function EditProfilePage() {
                       style={{ border: '4px solid var(--app-border)' }}
                     />
                     <div className="absolute -bottom-1 -right-1">
-                      <FileInput
-                        accept="image/png,image/jpeg,image/webp"
-                        onChange={handleFileChange}
-                        className="w-10"
-                        styles={{ input: { display: 'none' } }}
-                      >
-                        <label className="flex items-center justify-center w-10 h-10 rounded-full bg-violet-600 text-white shadow-lg cursor-pointer hover:bg-violet-700 transition-colors">
-                          <IconUpload size={18} />
-                        </label>
-                      </FileInput>
+                      {/* ✅ FIXED: Using FileButton to wrap a custom clickable button */}
+                      <FileButton onChange={handleFileChange} accept="image/png,image/jpeg,image/webp">
+                        {(props) => (
+                          <button
+                            {...props}
+                            type="button"
+                            className="flex items-center justify-center w-10 h-10 rounded-full bg-violet-600 text-white shadow-lg cursor-pointer hover:bg-violet-700 transition-colors border-none outline-none"
+                            aria-label="Upload profile photo"
+                          >
+                            <IconUpload size={18} />
+                          </button>
+                        )}
+                      </FileButton>
                     </div>
                   </div>
                   <div className="text-center sm:text-left">
-                    {/* ✅ FIXED: CSS var */}
                     <Text fw={600} style={{ color: 'var(--app-text)' }}>
                       Profile Photo
                     </Text>

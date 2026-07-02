@@ -1,20 +1,32 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Title, TextInput, PasswordInput, Text, Anchor, Progress, Box, Stack } from '@mantine/core';
+import { Title, TextInput, PasswordInput, Text, Anchor, Progress, Stack, Popover } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconArrowRight } from '@tabler/icons-react';
+import { IconArrowRight, IconCheck, IconX } from '@tabler/icons-react';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
 import { EMAIL_REGEX, DISPLAY_NAME_MIN, DISPLAY_NAME_MAX } from '@/constants/validation';
 import { Button } from '@/components/ui/Button';
 
-function getPasswordStrength(password: string) {
-  let score = 0;
-  if (password.length >= 8) score++;
-  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
-  if (/\d/.test(password)) score++;
-  if (/[@$!%*?&]/.test(password)) score++;
-  return score;
+// 1. Define the updated, optimal requirements (accepts ANY special character)
+const requirements = [
+  { re: /[0-9]/, label: 'Includes number' },
+  { re: /[a-z]/, label: 'Includes lowercase letter' },
+  { re: /[A-Z]/, label: 'Includes uppercase letter' },
+  { re: /[^A-Za-z0-9]/, label: 'Includes special symbol' },
+];
+
+// 2. Calculate strength based on unmet requirements
+function getStrength(password: string) {
+  let multiplier = password.length > 7 ? 0 : 1;
+
+  requirements.forEach((requirement) => {
+    if (!requirement.re.test(password)) {
+      multiplier += 1;
+    }
+  });
+
+  return Math.max(100 - (100 / (requirements.length + 1)) * multiplier, 10);
 }
 
 export function RegisterPage() {
@@ -23,11 +35,14 @@ export function RegisterPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [popoverOpened, setPopoverOpened] = useState(false); // Controls the checklist visibility
+  
   const { register, isRegistering } = useAuth();
 
-  const passwordStrength = getPasswordStrength(password);
-  const strengthColor = ['red', 'orange', 'yellow', 'green'][passwordStrength] || 'red';
-  const strengthLabel = ['Too weak', 'Weak', 'Medium', 'Strong'][passwordStrength] || '';
+  // Derived state for the password strength UI
+  const strength = getStrength(password);
+  const strengthColor = strength === 100 ? 'teal' : strength > 50 ? 'yellow' : 'red';
+  const meetsLength = password.length >= 8;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,6 +63,21 @@ export function RegisterPage() {
 
     register({ universityEmail: email, password, displayName });
   };
+
+  // Generate the checklist UI elements dynamically
+  const checks = requirements.map((requirement, index) => {
+    const meets = requirement.re.test(password);
+    return (
+      <Text
+        key={index}
+        c={meets ? 'teal' : 'dimmed'}
+        size="sm"
+        className="flex items-center gap-2 mt-1"
+      >
+        {meets ? <IconCheck size={14} /> : <IconX size={14} />} {requirement.label}
+      </Text>
+    );
+  });
 
   return (
     <Stack gap="xl">
@@ -86,27 +116,36 @@ export function RegisterPage() {
           size="md"
           aria-label="University email"
         />
-        <PasswordInput
-          label="Password"
-          placeholder="Create a password"
-          value={password}
-          onChange={(e) => setPassword(e.currentTarget.value)}
-          required
-          radius="md"
-          size="md"
-          aria-label="Password"
-        />
-        {password && (
-          <Box mt={-8}>
-            <Progress value={(passwordStrength / 4) * 100} color={strengthColor} size="sm" radius="xl" />
-            <Text size="xs" c={strengthColor} mt="xs" fw={600}>
-              {strengthLabel}
+
+        {/* OPTIMAL UI: Password Popover Checklist */}
+        <Popover opened={popoverOpened} position="bottom" width="target" transitionProps={{ transition: 'pop' }}>
+          <Popover.Target>
+            <div
+              onFocusCapture={() => setPopoverOpened(true)}
+              onBlurCapture={() => setPopoverOpened(false)}
+            >
+              <PasswordInput
+                label="Password"
+                placeholder="Create a strong password"
+                value={password}
+                onChange={(e) => setPassword(e.currentTarget.value)}
+                required
+                radius="md"
+                size="md"
+                aria-label="Password"
+              />
+            </div>
+          </Popover.Target>
+
+          <Popover.Dropdown>
+            <Progress color={strengthColor} value={strength} size={5} mb="xs" />
+            <Text c={meetsLength ? 'teal' : 'dimmed'} size="sm" className="flex items-center gap-2 mt-1">
+              {meetsLength ? <IconCheck size={14} /> : <IconX size={14} />} At least 8 characters
             </Text>
-            <Text size="xs" c="dimmed">
-              At least 8 characters, uppercase, lowercase, a number, and a special character.
-            </Text>
-          </Box>
-        )}
+            {checks}
+          </Popover.Dropdown>
+        </Popover>
+
         <PasswordInput
           label="Confirm password"
           placeholder="Confirm your password"
