@@ -60,8 +60,14 @@ export function RsvpList({ eventId, isHost = false }: RsvpListProps) {
 
   if (rsvps.length === 0) {
     return (
-      <Paper withBorder p="xl" ta="center">
-        <Text c="dimmed">No registrations found.</Text>
+      <Paper
+        withBorder
+        p="xl"
+        ta="center"
+        radius="xl"
+        style={{ background: 'var(--app-surface)', borderColor: 'var(--app-border)' }}
+      >
+        <Text style={{ color: 'var(--app-text-secondary)' }}>No registrations found.</Text>
       </Paper>
     );
   }
@@ -70,17 +76,23 @@ export function RsvpList({ eventId, isHost = false }: RsvpListProps) {
     <Table.Tr key={rsvp.id}>
       <Table.Td>
         <Group gap="xs">
-          <Text fw={500}>{rsvp.user.displayName}</Text>
-          <Text size="xs" c="dimmed">{rsvp.user.universityEmail}</Text>
+          <Text fw={500} size="sm" style={{ color: 'var(--app-text)' }}>
+            {rsvp.user.displayName}
+          </Text>
+          <Text size="xs" style={{ color: 'var(--app-text-muted)' }}>
+            {rsvp.user.universityEmail}
+          </Text>
         </Group>
       </Table.Td>
       <Table.Td>
-        <Badge color={statusColors[rsvp.status] || 'gray'}>
+        <Badge color={statusColors[rsvp.status] || 'gray'} variant="light" radius="md">
           {rsvp.status}
         </Badge>
       </Table.Td>
       <Table.Td>
-        <Text size="sm">{formatDate(rsvp.createdAt)}</Text>
+        <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+          {formatDate(rsvp.createdAt)}
+        </Text>
       </Table.Td>
       <Table.Td>
         {isHost && rsvp.status === 'GOING' && (
@@ -88,7 +100,9 @@ export function RsvpList({ eventId, isHost = false }: RsvpListProps) {
             <ActionIcon
               color="green"
               variant="subtle"
+              size="sm"
               onClick={() => markAttended({ eventId, rsvpId: rsvp.id })}
+              aria-label="Mark attended"
             >
               <IconCheck size={18} />
             </ActionIcon>
@@ -99,7 +113,9 @@ export function RsvpList({ eventId, isHost = false }: RsvpListProps) {
             <ActionIcon
               color="blue"
               variant="subtle"
+              size="sm"
               onClick={() => promoteWaitlist({ eventId, rsvpId: rsvp.id })}
+              aria-label="Promote from waitlist"
             >
               <IconUserPlus size={18} />
             </ActionIcon>
@@ -107,11 +123,11 @@ export function RsvpList({ eventId, isHost = false }: RsvpListProps) {
         )}
         {isHost && rsvp.status === 'CANCELLED' && (
           <Tooltip label="Cancelled">
-            <IconUserMinus size={18} color="gray" />
+            <IconUserMinus size={18} style={{ color: 'var(--app-text-muted)' }} />
           </Tooltip>
         )}
         {rsvp.status === 'ATTENDED' && (
-          <Badge color="blue" size="xs">✓ Checked in</Badge>
+          <Badge color="blue" size="xs" variant="light" radius="md">✓ Checked in</Badge>
         )}
       </Table.Td>
     </Table.Tr>
@@ -119,7 +135,7 @@ export function RsvpList({ eventId, isHost = false }: RsvpListProps) {
 
   return (
     <Stack gap="md">
-      <Group justify="space-between">
+      <Group justify="space-between" wrap="wrap" gap="sm">
         <Select
           placeholder="Filter by status"
           data={[{ value: '', label: 'All' }, ...statusOptions]}
@@ -127,24 +143,51 @@ export function RsvpList({ eventId, isHost = false }: RsvpListProps) {
           onChange={(val) => setStatusFilter(val || null)}
           clearable
           w={200}
+          radius="md"
+          styles={{
+            input: { background: 'var(--app-bg)', color: 'var(--app-text)' },
+            dropdown: { background: 'var(--app-surface)', borderColor: 'var(--app-border)' },
+          }}
         />
-        <Text size="sm" c="dimmed">
+        <Text size="sm" style={{ color: 'var(--app-text-muted)' }}>
           Total: {data?.totalElements || 0}
         </Text>
       </Group>
 
-      <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Attendee</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Registered</Table.Th>
-              <Table.Th>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>{rows}</Table.Tbody>
-        </Table>
+      <Paper
+        withBorder
+        radius="xl"
+        style={{ overflow: 'hidden', background: 'var(--app-surface)', borderColor: 'var(--app-border)' }}
+      >
+        <Table.ScrollContainer minWidth={600} type="native">
+          <Table
+            striped
+            highlightOnHover
+            styles={{
+              table: { background: 'var(--app-surface)' },
+            }}
+          >
+            <Table.Thead>
+              <Table.Tr style={{ background: 'var(--app-border-light)' }}>
+                {['Attendee', 'Status', 'Registered', 'Actions'].map((h) => (
+                  <Table.Th
+                    key={h}
+                    style={{
+                      color: 'var(--app-text-secondary)',
+                      fontSize: '0.75rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {h}
+                  </Table.Th>
+                ))}
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>{rows}</Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
       </Paper>
 
       {totalPages > 1 && (
@@ -153,6 +196,10 @@ export function RsvpList({ eventId, isHost = false }: RsvpListProps) {
             total={totalPages}
             value={page + 1}
             onChange={(p) => setPage(p - 1)}
+            color="brand"
+            styles={{
+              control: { color: 'var(--app-text)', borderColor: 'var(--app-border)' },
+            }}
           />
         </Group>
       )}

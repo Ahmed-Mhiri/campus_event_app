@@ -1,7 +1,20 @@
+// src/pages/Events/EventDetailPage/index.tsx
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Container, Grid, Stack, Button, Loader, Center, Alert, Paper, Text, Modal, Textarea, Group } from '@mantine/core';
-import { IconArrowLeft } from '@tabler/icons-react';
+import {
+  Grid,
+  Stack,
+  Loader,
+  Center,
+  Alert,
+  Paper,
+  Text,
+  Modal,
+  Textarea,
+  Group,
+  Title,
+} from '@mantine/core';
+import { IconArrowLeft, IconAlertCircle } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { eventsApi } from '@/api/eventsApi';
 import { ROUTES } from '@/constants/routes';
@@ -9,6 +22,8 @@ import { useRsvp } from '@/hooks/useRsvp';
 import { useAuthStore } from '@/stores/authStore';
 import { useEventSse } from '@/hooks/useEventSse';
 import { ReviewSection } from '@/components/organisms/ReviewSection';
+import { PageContainer } from '@/components/layout/PageContainer';
+import { Button } from '@/components/ui/Button';
 import { EventHeader } from './EventHeader';
 import { EventMedia } from './EventMedia';
 import { EventSidebar } from './EventSidebar';
@@ -33,7 +48,6 @@ export function EventDetailPage() {
 
   useEventSse(event?.id);
 
-  // Modal states
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -43,7 +57,6 @@ export function EventDetailPage() {
   const { createRsvp, cancelRsvp, isCreating, isCancelling, useMyRsvpForEvent } = useRsvp(event?.id);
   const { data: myRsvp } = useMyRsvpForEvent(event?.id || '');
 
-  // Cancel event mutation
   const cancelMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       eventsApi.cancelEvent(id, reason),
@@ -54,7 +67,6 @@ export function EventDetailPage() {
     },
   });
 
-  // Delete event mutation
   const deleteMutation = useMutation({
     mutationFn: (id: string) => eventsApi.softDeleteEvent(id),
     onSuccess: () => navigate(ROUTES.MY_EVENTS),
@@ -62,32 +74,31 @@ export function EventDetailPage() {
 
   if (isLoading) {
     return (
-      <Center h="50vh">
-        <Loader size="xl" />
+      <Center h="60vh">
+        <Loader size="xl" color="brand" />
       </Center>
     );
   }
 
   if (error || !event) {
     return (
-      <Container py="xl">
-        <Alert color="red" title="Event not found">
-          The event you're looking for doesn't exist or has been removed.
+      <PageContainer size="md">
+        <Alert
+          icon={<IconAlertCircle size={18} />}
+          color="red"
+          radius="lg"
+          title="Event not found"
+          style={{ background: 'var(--app-surface)', borderColor: 'var(--app-border)' }}
+        >
+          <Text style={{ color: 'var(--app-text-secondary)' }}>
+            The event you're looking for doesn't exist or has been removed.
+          </Text>
         </Alert>
-      </Container>
+      </PageContainer>
     );
   }
 
-  const {
-    id,
-    title,
-    description,
-    host,
-    maxCapacity,
-    currentRsvpCount,
-    status,
-    media,
-  } = event;
+  const { id, title, description, host, maxCapacity, currentRsvpCount, status, media } = event;
 
   const isCancelled = status === 'CANCELLED';
   const isCompleted = status === 'COMPLETED';
@@ -104,31 +115,61 @@ export function EventDetailPage() {
   const handleShare = () => navigator.clipboard.writeText(window.location.href);
 
   return (
-    <Container size="lg" py="xl">
-      <Button component={Link} to="/events" variant="subtle" leftSection={<IconArrowLeft size={16} />} mb="md" radius="md">
+    <PageContainer size="lg">
+      <Button
+        component={Link}
+        to={ROUTES.EVENTS}
+        variant="ghost"
+        size="sm"
+        className="px-0 mb-4"
+        aria-label="Back to events"
+      >
+        <IconArrowLeft size={16} className="mr-1.5" />
         Back to events
       </Button>
 
-      <Grid>
+      <Grid gap="xl">
         <Grid.Col span={{ base: 12, md: 8 }}>
-          <Stack gap="md">
+          <Stack gap="xl">
             <EventHeader event={event} />
             <EventMedia media={media || []} title={title} />
 
             {description && (
-              <Paper withBorder p="md" radius="lg">
-                <Text>{description}</Text>
+              <Paper
+                withBorder
+                p="xl"
+                radius="xl"
+                className="border-slate-200/80 dark:border-slate-700/60"
+                style={{ background: 'var(--app-surface)' }}
+              >
+                <Text
+                  fw={700}
+                  size="sm"
+                  mb="sm"
+                  className="uppercase tracking-wider"
+                  style={{ color: 'var(--app-text-muted)' }}
+                >
+                  About this event
+                </Text>
+                <Text className="leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--app-text-secondary)' }}>
+                  {description}
+                </Text>
               </Paper>
             )}
 
-            <ReviewSection
-              eventId={id}
-              hostId={host.id}
-              canReview={canReview}
-              onReviewSubmitted={() => {
-                queryClient.invalidateQueries({ queryKey: ['event', slug] });
-              }}
-            />
+            <div>
+              <Title order={2} size="h3" mb="md" style={{ color: 'var(--app-text)' }}>
+                Reviews
+              </Title>
+              <ReviewSection
+                eventId={id}
+                hostId={host.id}
+                canReview={canReview}
+                onReviewSubmitted={() => {
+                  queryClient.invalidateQueries({ queryKey: ['event', slug] });
+                }}
+              />
+            </div>
           </Stack>
         </Grid.Col>
 
@@ -152,9 +193,25 @@ export function EventDetailPage() {
       </Grid>
 
       {/* Cancel Event Modal */}
-      <Modal opened={cancelModalOpen} onClose={() => setCancelModalOpen(false)} title="Cancel Event" centered radius="xl">
+      <Modal
+        opened={cancelModalOpen}
+        onClose={() => setCancelModalOpen(false)}
+        title={
+          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
+            Cancel event
+          </Text>
+        }
+        centered
+        radius="xl"
+        styles={{
+          content: { background: 'var(--app-surface)' },
+          header: { background: 'var(--app-surface)', borderBottom: '1px solid var(--app-border)' },
+        }}
+      >
         <Stack>
-          <Text size="sm">Are you sure you want to cancel this event? All attendees will be notified.</Text>
+          <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+            Are you sure you want to cancel this event? All attendees will be notified.
+          </Text>
           <Textarea
             label="Reason (optional)"
             placeholder="Why are you cancelling?"
@@ -164,29 +221,86 @@ export function EventDetailPage() {
             autosize
             minRows={2}
             radius="md"
+            styles={{
+              label: { color: 'var(--app-text)' },
+              input: { background: 'var(--app-bg)', color: 'var(--app-text)' },
+            }}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setCancelModalOpen(false)} radius="md">No, keep it</Button>
-            <Button color="orange" loading={cancelMutation.isPending} onClick={() => cancelMutation.mutate({ id, reason: cancelReason })} radius="md">Yes, cancel event</Button>
+            <Button variant="ghost" onClick={() => setCancelModalOpen(false)} radius="md">
+              No, keep it
+            </Button>
+            <Button
+              variant="danger"
+              isLoading={cancelMutation.isPending}
+              onClick={() => cancelMutation.mutate({ id, reason: cancelReason })}
+              radius="md"
+            >
+              Yes, cancel event
+            </Button>
           </Group>
         </Stack>
       </Modal>
 
       {/* Delete Event Modal */}
-      <Modal opened={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="Move to Trash" centered radius="xl">
+      <Modal
+        opened={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title={
+          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
+            Move to trash
+          </Text>
+        }
+        centered
+        radius="xl"
+        styles={{
+          content: { background: 'var(--app-surface)' },
+          header: { background: 'var(--app-surface)', borderBottom: '1px solid var(--app-border)' },
+        }}
+      >
         <Stack>
-          <Text size="sm">This will move the event to your trash. You can restore it later from My Events.</Text>
+          <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+            This will move the event to your trash. You can restore it later from My Events.
+          </Text>
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setDeleteModalOpen(false)} radius="md">Cancel</Button>
-            <Button color="red" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(id)} radius="md">Move to Trash</Button>
+            <Button variant="ghost" onClick={() => setDeleteModalOpen(false)} radius="md">
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              isLoading={deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate(id)}
+              radius="md"
+            >
+              Move to trash
+            </Button>
           </Group>
         </Stack>
       </Modal>
 
       {/* Cancel RSVP Modal */}
-      <Modal opened={cancelRsvpModalOpen} onClose={() => { setCancelRsvpModalOpen(false); setCancelRsvpReason(''); }} title="Cancel Registration" centered radius="xl">
+      <Modal
+        opened={cancelRsvpModalOpen}
+        onClose={() => {
+          setCancelRsvpModalOpen(false);
+          setCancelRsvpReason('');
+        }}
+        title={
+          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
+            Cancel registration
+          </Text>
+        }
+        centered
+        radius="xl"
+        styles={{
+          content: { background: 'var(--app-surface)' },
+          header: { background: 'var(--app-surface)', borderBottom: '1px solid var(--app-border)' },
+        }}
+      >
         <Stack>
-          <Text size="sm">Are you sure you want to cancel your registration for this event?</Text>
+          <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+            Are you sure you want to cancel your registration for this event?
+          </Text>
           <Textarea
             label="Reason (optional)"
             placeholder="Why are you cancelling?"
@@ -196,13 +310,21 @@ export function EventDetailPage() {
             autosize
             minRows={2}
             radius="md"
+            styles={{
+              label: { color: 'var(--app-text)' },
+              input: { background: 'var(--app-bg)', color: 'var(--app-text)' },
+            }}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setCancelRsvpModalOpen(false)} radius="md">No, keep my spot</Button>
-            <Button color="red" loading={isCancelling} onClick={handleCancelRsvp} radius="md">Yes, cancel registration</Button>
+            <Button variant="ghost" onClick={() => setCancelRsvpModalOpen(false)} radius="md">
+              No, keep my spot
+            </Button>
+            <Button variant="danger" isLoading={isCancelling} onClick={handleCancelRsvp} radius="md">
+              Yes, cancel registration
+            </Button>
           </Group>
         </Stack>
       </Modal>
-    </Container>
+    </PageContainer>
   );
 }

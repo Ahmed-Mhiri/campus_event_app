@@ -1,22 +1,25 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Paper,
   Stack,
   TextInput,
   Textarea,
-  FileInput,
   Button,
   Avatar,
   Group,
-  Loader,
-  Container,
+  FileInput,
+  Divider,
+  Text,
 } from '@mantine/core';
-import { IconUpload } from '@tabler/icons-react';
+import { IconUpload, IconArrowLeft, IconCheck } from '@tabler/icons-react';
+import { motion } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
 import { getAvatarUrl } from '@/utils/fileHelpers';
-import { PageHeader } from '@/components/molecules/PageHeader';
+import { PageContainer } from '@/components/layout/PageContainer';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { Card } from '@/components/ui/Card';
+import { slideUp } from '@/design-system/animations';
 
 export function EditProfilePage() {
   const navigate = useNavigate();
@@ -48,68 +51,117 @@ export function EditProfilePage() {
     navigate(ROUTES.PROFILE);
   };
 
-  if (!user) return <Loader />;
+  if (!user) return null;
 
   const avatarSrc = avatarPreview || user.profileImageUrl || getAvatarUrl(user.id) || undefined;
 
   return (
-    <Container size="sm" py="xl">
-      <PageHeader title="Edit Profile" />
-      
-      <Paper radius="lg" p="xl" withBorder>
-        <form onSubmit={handleSubmit}>
-          <Stack gap="md">
-            <Group align="end">
-              <Avatar
-                src={avatarSrc != null ? String(avatarSrc) : undefined}
-                size={80}
-                radius="xl"
-                alt="Avatar preview"
-                style={{ border: '3px solid var(--app-border)' }}
-              />
-              <FileInput
-                label="Profile Image"
-                placeholder="Upload new image"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={handleFileChange}
-                leftSection={<IconUpload size={18} />}
-                style={{ flex: 1 }}
-                radius="md"
-              />
-            </Group>
+    <PageContainer size="md">
+      <Stack gap="xl">
+        <PageHeader
+          title="Edit Profile"
+          subtitle="Update your public information"
+          breadcrumbs={[
+            { label: 'Profile', href: ROUTES.PROFILE },
+            { label: 'Edit Profile' },
+          ]}
+        />
 
-            <TextInput
-              label="Display Name"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.currentTarget.value)}
-              required
-              minLength={2}
-              maxLength={50}
-              radius="md"
-            />
+        <motion.div initial="hidden" animate="visible" variants={slideUp}>
+          <Card variant="default" className="border-slate-200/80 dark:border-slate-700/60">
+            <form onSubmit={handleSubmit}>
+              <Stack gap="xl">
+                {/* Avatar Section */}
+                <div className="flex flex-col sm:flex-row items-center gap-6">
+                  <div className="relative">
+                    <Avatar
+                      src={avatarSrc}
+                      size={120}
+                      radius="xl"
+                      alt="Avatar preview"
+                      className="shadow-md"
+                      style={{ border: '4px solid var(--app-border)' }}
+                    />
+                    <div className="absolute -bottom-1 -right-1">
+                      <FileInput
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={handleFileChange}
+                        className="w-10"
+                        styles={{ input: { display: 'none' } }}
+                      >
+                        <label className="flex items-center justify-center w-10 h-10 rounded-full bg-violet-600 text-white shadow-lg cursor-pointer hover:bg-violet-700 transition-colors">
+                          <IconUpload size={18} />
+                        </label>
+                      </FileInput>
+                    </div>
+                  </div>
+                  <div className="text-center sm:text-left">
+                    {/* ✅ FIXED: CSS var */}
+                    <Text fw={600} style={{ color: 'var(--app-text)' }}>
+                      Profile Photo
+                    </Text>
+                    <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+                      JPG, PNG or WebP. Max 5MB. A square image works best.
+                    </Text>
+                  </div>
+                </div>
 
-            <Textarea
-              label="Bio"
-              value={bio}
-              onChange={(e) => setBio(e.currentTarget.value)}
-              placeholder="Tell us about yourself (max 500 characters)"
-              maxLength={500}
-              autosize
-              minRows={3}
-              radius="md"
-            />
+                <Divider style={{ borderColor: 'var(--app-border)' }} />
 
-            <Group justify="flex-end" mt="md">
-              <Button variant="default" onClick={() => navigate(ROUTES.PROFILE)} radius="md">
-                Cancel
-              </Button>
-              <Button type="submit" loading={isUpdatingProfile} radius="md">
-                Save Changes
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Paper>
-    </Container>
+                {/* Fields */}
+                <Stack gap="md">
+                  <TextInput
+                    label="Display Name"
+                    placeholder="Your name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.currentTarget.value)}
+                    required
+                    minLength={2}
+                    maxLength={50}
+                    radius="md"
+                    size="md"
+                    styles={{ label: { color: 'var(--app-text)' } }}
+                  />
+                  <Textarea
+                    label="Bio"
+                    value={bio}
+                    onChange={(e) => setBio(e.currentTarget.value)}
+                    placeholder="Tell us about yourself (max 500 characters)"
+                    maxLength={500}
+                    autosize
+                    minRows={3}
+                    radius="md"
+                    styles={{ label: { color: 'var(--app-text)' } }}
+                  />
+                </Stack>
+
+                {/* Actions */}
+                <Group justify="flex-end" gap="sm">
+                  <Button
+                    variant="default"
+                    leftSection={<IconArrowLeft size={16} />}
+                    onClick={() => navigate(ROUTES.PROFILE)}
+                    radius="md"
+                    size="md"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    loading={isUpdatingProfile}
+                    leftSection={<IconCheck size={16} />}
+                    radius="md"
+                    size="md"
+                    color="brand"
+                  >
+                    Save Changes
+                  </Button>
+                </Group>
+              </Stack>
+            </form>
+          </Card>
+        </motion.div>
+      </Stack>
+    </PageContainer>
   );
 }

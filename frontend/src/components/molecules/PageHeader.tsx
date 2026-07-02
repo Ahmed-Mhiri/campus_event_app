@@ -23,19 +23,35 @@ export function PageHeader({ title, subtitle, breadcrumbs, actions }: PageHeader
           <Breadcrumbs>
             {breadcrumbs.map((item, i) => 
               item.href ? (
-                <Anchor component={Link} to={item.href} key={i} size="sm">
+                <Anchor
+                  component={Link}
+                  to={item.href}
+                  key={i}
+                  size="sm"
+                  // ✅ FIXED: CSS var instead of default Mantine color
+                  style={{ color: 'var(--app-text-secondary)' }}
+                >
                   {item.label}
                 </Anchor>
               ) : (
-                <Text size="sm" c="dimmed" key={i}>{item.label}</Text>
+                <Text size="sm" key={i} style={{ color: 'var(--app-text-muted)' }}>
+                  {item.label}
+                </Text>
               )
             )}
           </Breadcrumbs>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
           <div>
-            <Title order={1} size="h2">{title}</Title>
-            {subtitle && <Text c="dimmed" size="lg" mt="xs">{subtitle}</Text>}
+            {/* ✅ FIXED: Explicit color via CSS var */}
+            <Title order={1} size="h2" style={{ color: 'var(--app-text)' }}>
+              {title}
+            </Title>
+            {subtitle && (
+              <Text size="lg" mt="xs" style={{ color: 'var(--app-text-secondary)' }}>
+                {subtitle}
+              </Text>
+            )}
           </div>
           {actions && <div>{actions}</div>}
         </div>

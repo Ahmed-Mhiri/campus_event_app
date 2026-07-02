@@ -1,60 +1,88 @@
-import { SimpleGrid, Stack, Text, Group, Paper, ThemeIcon, Skeleton } from '@mantine/core';
-import { motion } from 'framer-motion';
-import { IconSearch, IconCalendarPlus, IconUsers } from '@tabler/icons-react';
+import { SimpleGrid, Stack, Text, Group, Skeleton, Title } from '@mantine/core';
+import { IconArrowRight } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { EventCard } from '@/components/molecules/EventCard';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { Section } from '@/components/atoms/Section';
 import { HeroSection } from '@/components/organisms/HeroSection';
-import { useFeaturedEvents } from '@/hooks/useEvents';
-import { CategoryChip } from '@/components/molecules/CategoryChip';
+import { useFeaturedEvents, useEvents } from '@/hooks/useEvents';
 import { useCategories } from '@/hooks/useCategories';
 import { ROUTES } from '@/constants/routes';
 import { EmptyState } from '@/components/atoms/EmptyState';
+import { Button } from '@/components/ui/Button';
+import { StatsStrip } from '@/components/organisms/StatsStrip';
+import { HappeningSoon } from '@/components/organisms/HappeningSoon';
+import { CategoryTile } from '@/components/molecules/CategoryTile';
 
 export function HomePage() {
   const { data: featuredData, isLoading: featuredLoading } = useFeaturedEvents();
   const { data: categories, isLoading: categoriesLoading } = useCategories();
+  const { data: upcomingData } = useEvents({ sort: 'startTime' });
   const navigate = useNavigate();
 
   const featuredEvents = featuredData?.content ?? [];
+  const upcomingEvents = upcomingData?.pages?.[0]?.content ?? [];
+
+  const stats = [
+    { value: `${upcomingEvents.length}`, label: 'Events this month' },
+    { value: '2.4k', label: 'Active students' },
+    { value: `${categories?.length ?? 0}`, label: 'Categories to explore' },
+    { value: '4.8', label: 'Average host rating' },
+  ];
 
   return (
     <Stack gap={0}>
       <HeroSection />
 
-      <Section title="Browse by Category" subtitle="Find events that match your interests">
+      <StatsStrip stats={stats} />
+
+      <HappeningSoon events={upcomingEvents} />
+
+      {/* Categories */}
+      <Section
+        title="Browse by category"
+        subtitle="Find events that match your interests"
+        py="3.5rem"
+      >
         {categoriesLoading ? (
-          <Group gap="sm">
+          <SimpleGrid cols={{ base: 2, sm: 3, md: 6 }} spacing="sm">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} height={36} width={100} radius="xl" />
+              <Skeleton key={i} height={84} radius="lg" />
             ))}
-          </Group>
+          </SimpleGrid>
         ) : (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-            {categories?.map((cat) => (
-              <motion.div
-                key={cat.id}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <CategoryChip
-                  name={cat.name}
-                  color={cat.color}
-                  categoryId={cat.id}
-                  size="md"
-                />
-              </motion.div>
+          <SimpleGrid cols={{ base: 2, sm: 3, md: 6 }} spacing="sm">
+            {categories?.map((cat, i) => (
+              <CategoryTile key={cat.id} category={cat} index={i} />
             ))}
-          </div>
+          </SimpleGrid>
         )}
       </Section>
 
-      <Section
-        title="Featured Events"
-        subtitle="Hand-picked events you don't want to miss"
-        withBackground
-      >
+      {/* Curated picks */}
+      <Section withBackground py="4rem">
+        <Group justify="space-between" align="flex-end" mb="lg" wrap="wrap">
+          <div>
+            {/* ✅ FIXED: Use size="h3" + explicit color via style, not Tailwind dark: */}
+            <Title order={2} size="h3" fw={800} style={{ color: 'var(--app-text)' }}>
+              Curated for you
+            </Title>
+            <Text size="lg" mt={4} style={{ color: 'var(--app-text-secondary)' }}>
+              Hand-picked events worth planning ahead for
+            </Text>
+          </div>
+          {featuredEvents.length > 0 && (
+            <Button
+              variant="ghost"
+              onClick={() => navigate(ROUTES.EVENTS)}
+              rightSection={<IconArrowRight size={16} />}
+              aria-label="See all events"
+            >
+              See all events
+            </Button>
+          )}
+        </Group>
+
         {featuredLoading ? (
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -75,24 +103,6 @@ export function HomePage() {
             ))}
           </SimpleGrid>
         )}
-      </Section>
-
-      <Section title="How It Works">
-        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xl">
-          {[
-            { icon: IconSearch, title: 'Discover', desc: 'Browse events by category, date, or location' },
-            { icon: IconCalendarPlus, title: 'Register', desc: 'RSVP with one click and get reminders' },
-            { icon: IconUsers, title: 'Connect', desc: 'Meet new people and build your network' },
-          ].map((item, i) => (
-            <Paper key={i} p="xl" radius="lg" withBorder ta="center">
-              <ThemeIcon size={56} radius="xl" color="brand" variant="light" mb="md">
-                <item.icon size={28} />
-              </ThemeIcon>
-              <Text fw={600} size="lg" mb="xs">{item.title}</Text>
-              <Text c="dimmed" size="sm">{item.desc}</Text>
-            </Paper>
-          ))}
-        </SimpleGrid>
       </Section>
     </Stack>
   );

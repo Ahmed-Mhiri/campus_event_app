@@ -1,5 +1,5 @@
-import { Stack, Paper, Group, ThemeIcon, Text, Divider, Button, Alert, Badge, Avatar } from '@mantine/core';
-import { IconCalendar, IconMapPin, IconUsers, IconShare } from '@tabler/icons-react';
+import { Stack, Paper, Group, ThemeIcon, Text, Divider, Alert, Badge, Avatar } from '@mantine/core';
+import { IconCalendar, IconMapPin, IconUsers, IconShare, IconCrown, IconInfoCircle } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
 import { formatDate } from '@/utils/dateFormatter';
 import { CapacityBar } from '@/components/molecules/CapacityBar';
@@ -7,6 +7,7 @@ import { WaitlistBanner } from '@/components/organisms/WaitlistBanner';
 import { ROUTES } from '@/constants/routes';
 import { getAvatarUrl } from '@/utils/fileHelpers';
 import { UserTrustBadge } from '@/components/molecules/UserTrustBadge';
+import { Button } from '@/components/ui/Button';
 import type { Event, Rsvp } from '@/types';
 
 interface EventSidebarProps {
@@ -43,100 +44,179 @@ export function EventSidebar({
   const { id, location, startTime, endTime, maxCapacity, currentRsvpCount, myRsvpStatus, host } = event;
 
   return (
-    <div style={{ position: 'sticky', top: 80 }}>
+    <div className="lg:sticky lg:top-24">
       <Stack gap="md">
-        <Paper withBorder p="xl" radius="lg" style={{ background: 'linear-gradient(135deg, var(--app-surface) 0%, var(--app-border-light) 100%)' }}>
-          <Stack gap="lg">
-            <Group gap="md" align="flex-start">
-              <ThemeIcon size={40} radius="md" color="brand" variant="light">
+        {/* Primary action card */}
+        <Paper
+          withBorder
+          p="xl"
+          radius="xl"
+          className="border-slate-200/80 dark:border-slate-700/60 relative overflow-hidden"
+          style={{ background: 'var(--app-surface)' }}
+        >
+          {/* Soft brand accent glow, top-right */}
+          <div
+            className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-[0.08] pointer-events-none"
+            style={{ background: 'var(--app-primary)' }}
+            aria-hidden="true"
+          />
+
+          <Stack gap="lg" className="relative">
+            <Group gap="md" align="flex-start" wrap="nowrap">
+              <ThemeIcon size={40} radius="lg" color="brand" variant="light" className="shrink-0">
                 <IconCalendar size={20} />
               </ThemeIcon>
-              <div>
-                <Text fw={600}>{formatDate(startTime)}</Text>
-                <Text size="sm" c="dimmed">{formatDate(endTime)}</Text>
+              <div className="min-w-0">
+                <Text fw={600} size="sm" style={{ color: 'var(--app-text)' }}>
+                  {formatDate(startTime)}
+                </Text>
+                <Text size="xs" style={{ color: 'var(--app-text-muted)' }}>
+                  until {formatDate(endTime)}
+                </Text>
               </div>
             </Group>
 
-            <Group gap="md" align="flex-start">
-              <ThemeIcon size={40} radius="md" color="brand" variant="light">
+            <Group gap="md" align="flex-start" wrap="nowrap">
+              <ThemeIcon size={40} radius="lg" color="brand" variant="light" className="shrink-0">
                 <IconMapPin size={20} />
               </ThemeIcon>
-              <div>
-                <Text fw={600}>{location}</Text>
-                <Text size="sm" c="dimmed">Event Location</Text>
+              <div className="min-w-0">
+                <Text fw={600} size="sm" className="truncate" style={{ color: 'var(--app-text)' }}>
+                  {location}
+                </Text>
+                <Text size="xs" style={{ color: 'var(--app-text-muted)' }}>
+                  Event location
+                </Text>
               </div>
             </Group>
 
-            <Divider />
+            <Divider style={{ borderColor: 'var(--app-border)' }} />
 
-            <CapacityBar current={currentRsvpCount} max={maxCapacity} showLabels />
-
-            <Group justify="space-between">
-              <Group gap={4}>
-                <IconUsers size={16} />
-                <Text size="sm">{currentRsvpCount} / {maxCapacity} spots</Text>
+            <div>
+              <CapacityBar current={currentRsvpCount} max={maxCapacity} showLabels={false} />
+              <Group justify="space-between" mt={8}>
+                <Group gap={4}>
+                  <IconUsers size={14} style={{ color: 'var(--app-text-muted)' }} />
+                  <Text size="sm" style={{ color: 'var(--app-text-muted)' }}>
+                    {currentRsvpCount} / {maxCapacity} spots filled
+                  </Text>
+                </Group>
+                {isFull && (
+                  <Badge color="orange" size="xs" radius="md">
+                    Full
+                  </Badge>
+                )}
               </Group>
-              {isFull && <Badge color="orange">Full</Badge>}
-            </Group>
+            </div>
 
-            <Divider />
+            <Divider style={{ borderColor: 'var(--app-border)' }} />
 
             {!isHost && !isCancelled && !isCompleted && isAuthenticated ? (
               <>
                 {myRsvpStatus === 'GOING' ? (
-                  <Button fullWidth color="red" variant="light" onClick={onCancelRsvp} loading={isCancelling} radius="md">
-                    Cancel Registration
+                  <Button
+                    fullWidth
+                    variant="danger"
+                    onClick={onCancelRsvp}
+                    isLoading={isCancelling}
+                    className="min-h-[46px]"
+                    aria-label="Cancel registration"
+                  >
+                    Cancel registration
                   </Button>
                 ) : myRsvpStatus === 'WAITLISTED' ? (
-                  <>
-                    <Button fullWidth color="yellow" variant="light" disabled radius="md">
-                      Waitlisted
+                  <Stack gap="sm">
+                    <Button fullWidth variant="secondary" disabled className="min-h-[46px]">
+                      You're on the waitlist
                     </Button>
                     {myRsvp && <WaitlistBanner eventId={id} rsvpId={myRsvp.id} />}
-                  </>
+                  </Stack>
                 ) : (
-                  <Button fullWidth color={isFull ? 'yellow' : 'brand'} onClick={onRsvp} loading={isCreating} radius="md">
-                    {isFull ? 'Join Waitlist' : 'Register'}
+                  <Button
+                    fullWidth
+                    variant="primary"
+                    onClick={onRsvp}
+                    isLoading={isCreating}
+                    className="min-h-[46px]"
+                    aria-label={isFull ? 'Join waitlist' : 'Register for event'}
+                  >
+                    {isFull ? 'Join waitlist' : 'Register now'}
                   </Button>
                 )}
               </>
             ) : !isAuthenticated ? (
-              <Button fullWidth component={Link} to={ROUTES.LOGIN} variant="light" radius="md">
-                Login to register
+              <Button
+                fullWidth
+                component={Link}
+                to={ROUTES.LOGIN}
+                variant="secondary"
+                className="min-h-[46px]"
+                aria-label="Log in to register"
+              >
+                Log in to register
               </Button>
             ) : null}
 
             {isHost && (
-              <Alert color="blue" title="You are the host">
-                You can manage this event from the actions menu.
+              <Alert
+                icon={<IconCrown size={16} />}
+                color="brand"
+                radius="lg"
+                variant="light"
+                title="You're hosting this event"
+              >
+                Manage attendees, media, and settings from the actions menu above.
               </Alert>
             )}
 
             {isCancelled && cancellationReason && (
-              <Alert color="red" title="Event Cancelled">
+              <Alert icon={<IconInfoCircle size={16} />} color="red" radius="lg" title="Event cancelled">
                 {cancellationReason}
               </Alert>
             )}
 
             {isCompleted && (
-              <Alert color="gray" title="Event Completed">
-                This event has ended. You can now leave a review.
+              <Alert icon={<IconInfoCircle size={16} />} color="gray" radius="lg" title="Event completed">
+                This event has ended. You can now leave a review below.
               </Alert>
             )}
 
-            <Button variant="light" color="gray" leftSection={<IconShare size={16} />} onClick={onShare} radius="md">
-              Share Event
+            <Button
+              variant="ghost"
+              leftSection={<IconShare size={16} />}
+              onClick={onShare}
+              className="min-h-[44px]"
+              aria-label="Share event"
+            >
+              Share event
             </Button>
           </Stack>
         </Paper>
 
-        <Paper withBorder p="lg" radius="lg">
-          <Text fw={600} size="sm" c="dimmed" mb="md" tt="uppercase">Hosted by</Text>
-          <Group gap="md">
-            <Avatar src={host.profileImageUrl || getAvatarUrl(host.id) || undefined} size={56} radius="xl" />
-            <div>
-              <Text fw={600}>{host.displayName}</Text>
-              <UserTrustBadge trustLevel={host.trustLevel} />
+        {/* Host card */}
+        <Paper
+          withBorder
+          p="lg"
+          radius="xl"
+          className="border-slate-200/80 dark:border-slate-700/60"
+          style={{ background: 'var(--app-surface)' }}
+        >
+          <Text
+            fw={700}
+            size="xs"
+            mb="md"
+            className="uppercase tracking-wider"
+            style={{ color: 'var(--app-text-muted)' }}
+          >
+            Hosted by
+          </Text>
+          <Group gap="md" wrap="nowrap">
+            <Avatar src={host.profileImageUrl || getAvatarUrl(host.id) || undefined} size={52} radius="xl" />
+            <div className="min-w-0">
+              <Text fw={700} size="sm" className="truncate" style={{ color: 'var(--app-text)' }}>
+                {host.displayName}
+              </Text>
+              <UserTrustBadge trustLevel={host.trustLevel} size="xs" />
             </div>
           </Group>
         </Paper>

@@ -1,4 +1,5 @@
 /* frontend/src/design-system/global.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..800;1,14..32,400..800&display=swap');
 @import "tailwindcss";
 
 @layer theme, base, mantine, components, utilities;
@@ -34,6 +35,31 @@
   --app-primary: #8b5cf6;
   --app-primary-light: rgba(139, 92, 246, 0.1);
   --app-surface-rgb: 30, 41, 59;
+}
+
+/* ===== Base typography ===== */
+/* Mantine sets its own font-family on :root via --mantine-font-family and
+   reads that everywhere internally. Overriding the variable itself (rather
+   than just html/body) guarantees Inter wins regardless of CSS layer order,
+   since Mantine components consume the variable, not a competing rule. */
+:root,
+[data-mantine-color-scheme] {
+  --mantine-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+html,
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  font-variation-settings: 'opsz' 32;
+  background-color: var(--app-bg);
+  color: var(--app-text);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+#root {
+  background-color: var(--app-bg);
+  min-height: 100vh;
 }
 
 /* ===== Smooth scrolling ===== */
@@ -81,3 +107,14 @@ html {
     transition-duration: 0.01ms !important;
   }
 }
+/* ===== Tailwind + Mantine bridge utilities ===== */
+.text-app { color: var(--app-text); }
+.text-app-secondary { color: var(--app-text-secondary); }
+.text-app-muted { color: var(--app-text-muted); }
+
+.bg-app { background-color: var(--app-bg); }
+.bg-app-surface { background-color: var(--app-surface); }
+.bg-app-elevated { background-color: var(--app-elevated); }
+
+.border-app { border-color: var(--app-border); }
+.border-app-light { border-color: var(--app-border-light); }

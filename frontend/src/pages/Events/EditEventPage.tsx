@@ -1,19 +1,14 @@
 // src/pages/Events/EditEventPage.tsx
 import { useParams } from 'react-router-dom';
-import {
-  Container,
-  Title,
-  Stack,
-  Loader,
-  Center,
-  Alert,
-  Paper,
-} from '@mantine/core';
-import { IconAlertCircle } from '@tabler/icons-react';
+import { Stack, Loader, Center, Alert, Paper, Text, ThemeIcon } from '@mantine/core';
+import { IconAlertCircle, IconPhoto } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { EventForm } from '@/components/organisms/EventForm';
-import { MediaUploader } from '@/components/molecules/MediaUploader'; // 👈 new
+import { MediaUploader } from '@/components/molecules/MediaUploader';
 import { useEvent } from '@/hooks/useEvents';
+import { PageContainer } from '@/components/layout/PageContainer';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { ROUTES } from '@/constants/routes';
 
 export function EditEventPage() {
   const { id } = useParams<{ id: string }>();
@@ -22,51 +17,68 @@ export function EditEventPage() {
 
   if (isLoading) {
     return (
-      <Center h="50vh">
-        <Loader size="xl" />
+      <Center h="60vh">
+        <Loader size="xl" color="brand" />
       </Center>
     );
   }
 
   if (error || !event) {
     return (
-      <Container py="xl">
-        <Alert icon={<IconAlertCircle size={16} />} title="Error" color="red">
+      <PageContainer size="md">
+        <Alert icon={<IconAlertCircle size={18} />} title="Error" color="red" radius="lg">
           Failed to load event. It may have been deleted or you don't have permission to edit it.
         </Alert>
-      </Container>
+      </PageContainer>
     );
   }
 
-  // Check if user is host or admin (basic protection)
   if (!event.isHost) {
     return (
-      <Container py="xl">
-        <Alert icon={<IconAlertCircle size={16} />} title="Access Denied" color="red">
+      <PageContainer size="md">
+        <Alert icon={<IconAlertCircle size={18} />} title="Access denied" color="red" radius="lg">
           You are not the host of this event.
         </Alert>
-      </Container>
+      </PageContainer>
     );
   }
 
   return (
-    <Container size="md" py="xl">
-      <Stack gap="lg">
-        <Title order={2}>Edit Event</Title>
+    <PageContainer size="md">
+      <Stack gap="xl">
+        <PageHeader
+          title="Edit event"
+          subtitle={event.title}
+          breadcrumbs={[
+            { label: 'Events', href: ROUTES.EVENTS },
+            { label: 'My events', href: ROUTES.MY_EVENTS },
+            { label: 'Edit' },
+          ]}
+        />
+
         <EventForm initialValues={event} eventId={id} />
 
-        {/* 👇 New Media Uploader Section */}
-        <Paper withBorder p="md" radius="md" mt="xl">
-          <Title order={4}>Event Media</Title>
+        <Paper withBorder p="xl" radius="xl" className="border-slate-200/80 dark:border-slate-700/60">
+          <div className="flex items-center gap-3 mb-5">
+            <ThemeIcon size={36} radius="lg" color="brand" variant="light">
+              <IconPhoto size={18} />
+            </ThemeIcon>
+            <div>
+              <Text fw={700} className="text-slate-900 dark:text-white">
+                Event media
+              </Text>
+              <Text size="sm" c="dimmed">
+                Add photos and videos to help attendees know what to expect.
+              </Text>
+            </div>
+          </div>
           <MediaUploader
             eventId={event.id}
             media={event.media || []}
-            onMediaChange={() =>
-              queryClient.invalidateQueries({ queryKey: ['event', id] })
-            }
+            onMediaChange={() => queryClient.invalidateQueries({ queryKey: ['event', id] })}
           />
         </Paper>
       </Stack>
-    </Container>
+    </PageContainer>
   );
 }

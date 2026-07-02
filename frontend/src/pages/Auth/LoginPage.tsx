@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Title, TextInput, PasswordInput, Text, Anchor } from '@mantine/core';
+import { Title, TextInput, PasswordInput, Text, Anchor, Stack } from '@mantine/core';
+import { IconArrowRight } from '@tabler/icons-react';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
@@ -23,90 +23,95 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-brand-600 flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-xl" aria-hidden="true">
-              M
-            </span>
+    <Stack gap="xl">
+      <div>
+        <Title order={1} className="text-[1.75rem] sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          Welcome back
+        </Title>
+        <Text className="text-slate-500 dark:text-slate-400 mt-1.5">
+          Sign in to keep up with what's happening on campus.
+        </Text>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4" aria-label="Login form">
+        <TextInput
+          label="University email"
+          placeholder="name@stud.fh-dortmund.de"
+          value={email}
+          onChange={(e) => setEmail(e.currentTarget.value)}
+          required
+          type="email"
+          radius="md"
+          size="md"
+          aria-label="University email"
+        />
+        <div>
+          <PasswordInput
+            label="Password"
+            placeholder="Enter your password"
+            value={password}
+            onChange={(e) => setPassword(e.currentTarget.value)}
+            required
+            radius="md"
+            size="md"
+            aria-label="Password"
+          />
+          <div className="flex justify-end mt-1.5">
+            <Anchor
+              component={Link}
+              to={ROUTES.FORGOT_PASSWORD}
+              size="sm"
+              className="text-violet-600 hover:text-violet-700 dark:text-violet-400"
+              aria-label="Forgot password"
+            >
+              Forgot password?
+            </Anchor>
           </div>
-          <Title order={2} className="text-2xl font-bold text-slate-900 dark:text-white">
-            Welcome back
-          </Title>
-          <Text className="text-slate-500 dark:text-slate-400 mt-1">
-            Sign in to your account
-          </Text>
         </div>
 
-        <Card variant="elevated">
-          <form onSubmit={handleSubmit} className="space-y-4" aria-label="Login form">
-            <TextInput
-              label="University Email"
-              placeholder="name@stud.fh-dortmund.de"
-              value={email}
-              onChange={(e) => setEmail(e.currentTarget.value)}
-              required
-              type="email"
-              radius="md"
-              aria-label="University Email"
-            />
-            <PasswordInput
-              label="Password"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.currentTarget.value)}
-              required
-              radius="md"
-              aria-label="Password"
-            />
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              isLoading={isLoggingIn}
-              className="w-full min-h-[44px]"
-              aria-label="Sign in to your account"
-            >
-              Sign In
-            </Button>
-          </form>
+        <Button
+          type="submit"
+          variant="primary"
+          size="lg"
+          isLoading={isLoggingIn}
+          fullWidth
+          rightSection={<IconArrowRight size={18} />}
+          className="min-h-[46px] mt-2"
+          aria-label="Sign in to your account"
+        >
+          Sign in
+        </Button>
+      </form>
 
-          <div className="mt-6 space-y-3 text-center">
-            {showResend && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => resendVerification(email)}
-                aria-label="Resend verification email"
-              >
-                Resend verification email
-              </Button>
-            )}
-            <div className="flex items-center justify-between text-sm">
-              <Anchor
-                component={Link}
-                to={ROUTES.FORGOT_PASSWORD}
-                className="text-brand-600 hover:text-brand-700"
-                aria-label="Forgot password"
-              >
-                Forgot password?
-              </Anchor>
-              <Text className="text-slate-500">
-                No account?{' '}
-                <Anchor
-                  component={Link}
-                  to={ROUTES.REGISTER}
-                  className="text-brand-600 hover:text-brand-700"
-                  aria-label="Sign up"
-                >
-                  Sign up
-                </Anchor>
-              </Text>
-            </div>
-          </div>
-        </Card>
-      </div>
-    </div>
+      {showResend && (
+        <div className="rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 px-4 py-3">
+          <Text size="sm" className="text-amber-800 dark:text-amber-300">
+            Your email isn't verified yet.
+          </Text>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => resendVerification(email)}
+            className="px-0 text-amber-700 dark:text-amber-400 mt-1"
+            aria-label="Resend verification email"
+          >
+            Resend verification email
+          </Button>
+        </div>
+      )}
+
+      <Text size="sm" className="text-center text-slate-500 dark:text-slate-400">
+        No account yet?{' '}
+        <Anchor
+          component={Link}
+          to={ROUTES.REGISTER}
+          fw={600}
+          className="text-violet-600 hover:text-violet-700 dark:text-violet-400"
+          aria-label="Sign up"
+        >
+          Create one
+        </Anchor>
+      </Text>
+    </Stack>
   );
 }

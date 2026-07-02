@@ -1,21 +1,16 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Container,
   Stack,
-  Title,
-  Tabs,
   SimpleGrid,
-  Button,
   Group,
   Text,
-  Loader,
-  Center,
   Paper,
   Menu,
   Modal,
   Textarea,
   Box,
+  ActionIcon,
 } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { eventsApi } from '@/api/eventsApi';
@@ -29,19 +24,24 @@ import {
   IconRestore,
   IconTrash,
   IconEdit,
+  IconCalendarOff,
 } from '@tabler/icons-react';
 import type { Event } from '@/types';
+import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/atoms/EmptyState';
+import { SkeletonCard } from '@/components/atoms/SkeletonCard';
 
 type TabKey = 'active' | 'pending' | 'drafts' | 'trash';
 
-const tabLabels: Record<TabKey, string> = {
-  active: 'Active',
-  pending: 'Under Review',
-  drafts: 'Drafts',
-  trash: 'Trash Bin',
-};
+const tabs: { key: TabKey; label: string }[] = [
+  { key: 'active', label: 'Active' },
+  { key: 'pending', label: 'Under review' },
+  { key: 'drafts', label: 'Drafts' },
+  { key: 'trash', label: 'Trash bin' },
+];
 
 export function MyEventsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('active');
@@ -143,130 +143,200 @@ export function MyEventsPage() {
     permanentDeleteMutation.mutate(eventToDeleteId);
   };
 
+  const emptyCopy: Record<TabKey, { title: string; description: string }> = {
+    active: { title: 'No active events', description: 'Published events you host will show up here.' },
+    pending: { title: 'Nothing under review', description: "Events awaiting approval will appear here." },
+    drafts: { title: 'No drafts yet', description: 'Start creating an event and save it as a draft anytime.' },
+    trash: { title: 'Trash is empty', description: 'Events you remove will be kept here until deleted for good.' },
+  };
+
   return (
-    <Container size="xl" py="xl">
-      <Stack gap="lg">
+    <PageContainer size="lg">
+      <Stack gap="xl">
         <PageHeader
-          title="My Events"
+          title="My events"
+          subtitle="Manage everything you're hosting in one place"
           actions={
-            <Button component={Link} to={ROUTES.CREATE_EVENT} leftSection={<IconPlus size={18} />}>
-              Create Event
+            <Button
+              component={Link}
+              to={ROUTES.CREATE_EVENT}
+              variant="primary"
+              radius="xl"
+              className="whitespace-nowrap"
+            >
+              <IconPlus size={18} className="mr-1.5" />
+              Create event
             </Button>
           }
         />
 
-        <Tabs value={activeTab} onChange={(val) => setActiveTab(val as TabKey)}>
-          <Tabs.List>
-            {Object.entries(tabLabels).map(([key, label]) => (
-              <Tabs.Tab key={key} value={key}>
+        {/* Custom tab pills - FIXED: use CSS vars */}
+        <Group gap="xs" className="border-b pb-0" style={{ borderColor: 'var(--app-border)' }}>
+          {tabs.map(({ key, label }) => {
+            const active = activeTab === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className="relative px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors"
+                style={{
+                  color: active ? 'var(--app-primary)' : 'var(--app-text-secondary)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!active) e.currentTarget.style.color = 'var(--app-text)';
+                }}
+                onMouseLeave={(e) => {
+                  if (!active) e.currentTarget.style.color = 'var(--app-text-secondary)';
+                }}
+                aria-pressed={active}
+              >
                 {label}
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
+                {active && (
+                  <span
+                    className="absolute left-2 right-2 -bottom-px h-0.5 rounded-full"
+                    style={{ background: 'var(--app-primary)' }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </Group>
 
-          {Object.keys(tabLabels).map((key) => (
-            <Tabs.Panel key={key} value={key} pt="md">
-              {isLoading ? (
-                <Center py="xl">
-                  <Loader size="md" />
-                </Center>
-              ) : filteredEvents.length === 0 ? (
-                <Paper withBorder p="xl" ta="center" radius="lg">
-                  <Text c="dimmed" size="lg">
-                    No events in {tabLabels[key as TabKey].toLowerCase()}
-                  </Text>
-                  {key === 'active' && (
-                    <Button component={Link} to={ROUTES.CREATE_EVENT} variant="light" mt="md">
-                      Create your first event
-                    </Button>
-                  )}
-                </Paper>
-              ) : (
-                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-                  {filteredEvents.map((event) => (
-                    <Box key={event.id} pos="relative">
-                      <EventCard event={event} />
-                      <Menu position="bottom-end" withinPortal>
-                        <Menu.Target>
-                          <Button
-                            variant="subtle"
-                            size="compact-sm"
-                            style={{ position: 'absolute', top: 8, right: 8 }}
-                          >
-                            <IconDots size={18} />
-                          </Button>
-                        </Menu.Target>
-                        <Menu.Dropdown>
-                          {activeTab === 'drafts' && (
-                            <Menu.Item
-                              leftSection={<IconCheck size={14} />}
-                              onClick={() => handlePublish(event.id)}
-                            >
-                              Publish
-                            </Menu.Item>
-                          )}
-                          {activeTab !== 'trash' && (
-                            <>
-                              <Menu.Item
-                                component={Link}
-                                to={`/events/edit/${event.id}`}
-                                leftSection={<IconEdit size={14} />}
-                              >
-                                Edit
-                              </Menu.Item>
-                              <Menu.Item
-                                leftSection={<IconX size={14} />}
-                                color="orange"
-                                onClick={() => handleCancel(event)}
-                              >
-                                Cancel Event
-                              </Menu.Item>
-                            </>
-                          )}
-                          {activeTab === 'trash' && (
-                            <>
-                              <Menu.Item
-                                leftSection={<IconRestore size={14} />}
-                                onClick={() => handleRestore(event.id)}
-                              >
-                                Restore
-                              </Menu.Item>
-                              <Menu.Item
-                                leftSection={<IconTrash size={14} />}
-                                color="red"
-                                onClick={() => handlePermanentDelete(event.id)}
-                              >
-                                Delete Forever
-                              </Menu.Item>
-                            </>
-                          )}
-                          {activeTab !== 'trash' && (
-                            <Menu.Divider />
-                          )}
-                          {activeTab !== 'trash' && (
-                            <Menu.Item
-                              leftSection={<IconTrash size={14} />}
-                              color="red"
-                              onClick={() => handleMoveToTrash(event.id)}
-                            >
-                              Move to Trash
-                            </Menu.Item>
-                          )}
-                        </Menu.Dropdown>
-                      </Menu>
-                    </Box>
-                  ))}
-                </SimpleGrid>
-              )}
-            </Tabs.Panel>
-          ))}
-        </Tabs>
+        {isLoading ? (
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </SimpleGrid>
+        ) : filteredEvents.length === 0 ? (
+          <Paper
+            withBorder
+            radius="xl"
+            className="border-slate-200/80 dark:border-slate-700/60"
+            style={{ background: 'var(--app-surface)', borderColor: 'var(--app-border)' }}
+          >
+            <EmptyState
+              icon={<IconCalendarOff size={32} />}
+              title={emptyCopy[activeTab].title}
+              description={emptyCopy[activeTab].description}
+              action={
+                activeTab === 'active' || activeTab === 'drafts'
+                  ? { label: 'Create your first event', onClick: () => {} }
+                  : undefined
+              }
+            />
+          </Paper>
+        ) : (
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
+            {filteredEvents.map((event) => (
+              <Box key={event.id} pos="relative">
+                <EventCard event={event} />
+                <Menu position="bottom-end" withinPortal shadow="md" radius="md">
+                  <Menu.Target>
+                    <ActionIcon
+                      variant="filled"
+                      color="dark"
+                      size={32}
+                      radius="xl"
+                      className="absolute top-3 right-3 z-10 backdrop-blur-sm"
+                      style={{ background: 'rgba(15, 23, 42, 0.7)' }}
+                      aria-label="Event actions"
+                    >
+                      <IconDots size={16} />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown
+                    style={{
+                      background: 'var(--app-surface)',
+                      borderColor: 'var(--app-border)',
+                    }}
+                  >
+                    {activeTab === 'drafts' && (
+                      <Menu.Item
+                        leftSection={<IconCheck size={14} />}
+                        onClick={() => handlePublish(event.id)}
+                        style={{ color: 'var(--app-text)' }}
+                      >
+                        Publish
+                      </Menu.Item>
+                    )}
+                    {activeTab !== 'trash' && (
+                      <>
+                        <Menu.Item
+                          component={Link}
+                          to={`/events/edit/${event.id}`}
+                          leftSection={<IconEdit size={14} />}
+                          style={{ color: 'var(--app-text)' }}
+                        >
+                          Edit
+                        </Menu.Item>
+                        <Menu.Item
+                          leftSection={<IconX size={14} />}
+                          color="orange"
+                          onClick={() => handleCancel(event)}
+                        >
+                          Cancel event
+                        </Menu.Item>
+                      </>
+                    )}
+                    {activeTab === 'trash' && (
+                      <>
+                        <Menu.Item
+                          leftSection={<IconRestore size={14} />}
+                          onClick={() => handleRestore(event.id)}
+                          style={{ color: 'var(--app-text)' }}
+                        >
+                          Restore
+                        </Menu.Item>
+                        <Menu.Item
+                          leftSection={<IconTrash size={14} />}
+                          color="red"
+                          onClick={() => handlePermanentDelete(event.id)}
+                        >
+                          Delete forever
+                        </Menu.Item>
+                      </>
+                    )}
+                    {activeTab !== 'trash' && (
+                      <>
+                        <Menu.Divider style={{ borderColor: 'var(--app-border)' }} />
+                        <Menu.Item
+                          leftSection={<IconTrash size={14} />}
+                          color="red"
+                          onClick={() => handleMoveToTrash(event.id)}
+                        >
+                          Move to trash
+                        </Menu.Item>
+                      </>
+                    )}
+                  </Menu.Dropdown>
+                </Menu>
+              </Box>
+            ))}
+          </SimpleGrid>
+        )}
       </Stack>
 
       {/* Cancel Event Modal */}
-      <Modal opened={cancelModalOpen} onClose={() => setCancelModalOpen(false)} title="Cancel Event" centered radius="xl">
+      <Modal
+        opened={cancelModalOpen}
+        onClose={() => setCancelModalOpen(false)}
+        title={
+          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
+            Cancel event
+          </Text>
+        }
+        centered
+        radius="xl"
+        styles={{
+          content: { background: 'var(--app-surface)' },
+          header: { background: 'var(--app-surface)', borderBottom: '1px solid var(--app-border)' },
+        }}
+      >
         <Stack>
-          <Text size="sm">Are you sure you want to cancel this event? All attendees will be notified.</Text>
+          <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+            Are you sure you want to cancel this event? All attendees will be notified.
+          </Text>
           <Textarea
             label="Reason (optional)"
             placeholder="Why are you cancelling?"
@@ -275,40 +345,47 @@ export function MyEventsPage() {
             maxLength={500}
             minRows={2}
             radius="md"
+            styles={{
+              label: { color: 'var(--app-text)' },
+              input: { background: 'var(--app-bg)', color: 'var(--app-text)' },
+            }}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setCancelModalOpen(false)} radius="md">
+            <Button variant="ghost" onClick={() => setCancelModalOpen(false)} radius="md">
               No, keep it
             </Button>
-            <Button color="red" onClick={confirmCancel} loading={cancelMutation.isPending} radius="md">
+            <Button
+              variant="danger"
+              onClick={confirmCancel}
+              isLoading={cancelMutation.isPending}
+              radius="md"
+            >
               Yes, cancel event
             </Button>
           </Group>
         </Stack>
       </Modal>
 
-      {/* Move to Trash Confirmation */}
       <ConfirmModal
         opened={moveToTrashModalOpen}
         onClose={() => setMoveToTrashModalOpen(false)}
         onConfirm={confirmMoveToTrash}
-        title="Move to Trash"
-        message="This will move the event to your trash. You can restore it later from the Trash Bin."
-        confirmLabel="Move to Trash"
+        title="Move to trash"
+        message="This will move the event to your trash. You can restore it later from the trash bin."
+        confirmLabel="Move to trash"
         confirmColor="orange"
         loading={softDeleteMutation.isPending}
       />
 
-      {/* Delete Forever Confirmation */}
       <ConfirmModal
         opened={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}
         onConfirm={confirmPermanentDelete}
-        title="Delete Forever"
+        title="Delete forever"
         message="Are you sure? This action cannot be undone. The event will be permanently removed."
-        confirmLabel="Delete Forever"
+        confirmLabel="Delete forever"
         loading={permanentDeleteMutation.isPending}
       />
-    </Container>
+    </PageContainer>
   );
 }

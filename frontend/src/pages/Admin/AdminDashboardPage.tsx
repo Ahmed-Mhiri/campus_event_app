@@ -1,17 +1,17 @@
+// src/pages/Admin/AdminDashboardPage.tsx
 import { Link } from 'react-router-dom';
 import {
-  Container,
   Stack,
   SimpleGrid,
-  Paper,
   Text,
   Group,
   Badge,
-  Button,
   Loader,
   Center,
   Table,
   ActionIcon,
+  ThemeIcon,
+  Divider,
 } from '@mantine/core';
 import {
   IconUsers,
@@ -21,12 +21,19 @@ import {
   IconEye,
   IconCheck,
   IconX,
+  IconArrowRight,
+  IconShield,
 } from '@tabler/icons-react';
+import { motion } from 'framer-motion';
 import { useAdmin } from '@/hooks/useAdmin';
 import { ROUTES } from '@/constants/routes';
 import { formatDate } from '@/utils/dateFormatter';
+import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
+import { Button as UIButton } from '@/components/ui/Button';
+import { EmptyState } from '@/components/atoms/EmptyState';
+import { slideUp, staggerContainer } from '@/design-system/animations';
 
 export function AdminDashboardPage() {
   const { useDashboard } = useAdmin();
@@ -34,19 +41,39 @@ export function AdminDashboardPage() {
 
   if (isLoading) {
     return (
-      <Center h="50vh">
-        <Loader size="xl" />
-      </Center>
+      <PageContainer size="xl">
+        <Center h="60vh">
+          <Loader size="xl" color="brand" />
+        </Center>
+      </PageContainer>
     );
   }
 
   if (error || !stats) {
     return (
-      <Container py="xl">
-        <Paper withBorder p="xl" radius="lg" ta="center">
-          <Text c="red">Failed to load dashboard data.</Text>
-        </Paper>
-      </Container>
+      <PageContainer size="xl">
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <Card
+            variant="default"
+            className="border-red-200/80 dark:border-red-900/40"
+            style={{ background: 'rgba(239, 68, 68, 0.03)' }}
+          >
+            <Group gap="md" align="center">
+              <ThemeIcon size={48} radius="xl" variant="light" color="red">
+                <IconAlertCircle size={24} />
+              </ThemeIcon>
+              <div>
+                <Text fw={600} className="text-red-700 dark:text-red-400">
+                  Failed to load dashboard
+                </Text>
+                <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+                  Could not retrieve admin statistics. Please try refreshing.
+                </Text>
+              </div>
+            </Group>
+          </Card>
+        </motion.div>
+      </PageContainer>
     );
   }
 
@@ -54,175 +81,364 @@ export function AdminDashboardPage() {
     {
       title: 'Pending Events',
       value: stats.pendingEventsCount,
-      color: 'yellow',
-      icon: <IconClock size={24} />,
+      color: 'yellow' as const,
+      icon: IconClock,
       link: ROUTES.ADMIN_EVENTS,
+      gradient: 'from-yellow-500/10 to-amber-500/10',
     },
     {
       title: 'Open Reports',
       value: stats.openReportsCount,
-      color: 'red',
-      icon: <IconAlertCircle size={24} />,
+      color: 'red' as const,
+      icon: IconAlertCircle,
       link: ROUTES.ADMIN_REPORTS,
+      gradient: 'from-red-500/10 to-rose-500/10',
     },
     {
       title: 'Total Users',
       value: stats.totalUsersCount,
-      color: 'blue',
-      icon: <IconUsers size={24} />,
+      color: 'blue' as const,
+      icon: IconUsers,
       link: ROUTES.ADMIN_USERS,
+      gradient: 'from-blue-500/10 to-indigo-500/10',
     },
     {
       title: 'Events This Week',
       value: stats.eventsThisWeek,
-      color: 'green',
-      icon: <IconCalendar size={24} />,
+      color: 'green' as const,
+      icon: IconCalendar,
       link: ROUTES.ADMIN_EVENTS,
+      gradient: 'from-green-500/10 to-emerald-500/10',
     },
   ];
 
   return (
-    <Container size="xl" py="xl">
-      <Stack gap="lg">
-        <PageHeader title="Admin Dashboard" />
-
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
-          {statCards.map((card) => (
-            <Card
-              key={card.title}
-              variant="elevated"
-              hover
-              component={Link}
-              to={card.link}
-              className="no-underline"
+    <PageContainer size="xl">
+      <Stack gap="xl">
+        <PageHeader
+          title="Admin Dashboard"
+          subtitle="Overview of platform activity and moderation queue"
+          actions={
+            <Badge
+              color="brand"
+              variant="light"
+              radius="md"
+              size="lg"
+              leftSection={<IconShield size={14} />}
             >
-              <Group justify="space-between">
+              Admin
+            </Badge>
+          }
+        />
+
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={staggerContainer}
+        >
+          {/* Stat Cards */}
+          <motion.div variants={slideUp}>
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg">
+              {statCards.map((card) => (
+                <Card
+                  key={card.title}
+                  variant="elevated"
+                  hover
+                  component={Link}
+                  to={card.link}
+                  className="no-underline group relative overflow-hidden"
+                >
+                  {/* Subtle gradient background */}
+                  <div
+                    className={`absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-0 group-hover:opacity-100 transition-opacity`}
+                  />
+                  <div className="relative">
+                    <Group justify="space-between" align="flex-start">
+                      <div>
+                        <Text
+                          size="sm"
+                          fw={500}
+                          className="uppercase tracking-wider"
+                          style={{ color: 'var(--app-text-secondary)' }}
+                        >
+                          {card.title}
+                        </Text>
+                        <Text
+                          fw={800}
+                          size="2.5rem"
+                          className="tracking-tight mt-1"
+                          style={{ color: 'var(--app-text)' }}
+                        >
+                          {card.value}
+                        </Text>
+                      </div>
+                      <ThemeIcon
+                        size={48}
+                        radius="xl"
+                        variant="light"
+                        color={card.color}
+                        className="shrink-0"
+                      >
+                        <card.icon size={24} />
+                      </ThemeIcon>
+                    </Group>
+                    <Group gap={4} className="mt-4" align="center">
+                      <Text size="xs" style={{ color: 'var(--app-text-muted)' }}>
+                        View details
+                      </Text>
+                      <IconArrowRight
+                        size={14}
+                        className="group-hover:translate-x-1 transition-transform"
+                        style={{ color: 'var(--app-text-muted)' }}
+                      />
+                    </Group>
+                  </div>
+                </Card>
+              ))}
+            </SimpleGrid>
+          </motion.div>
+
+          {/* Recent Pending Events */}
+          <motion.div variants={slideUp} className="mt-8">
+            <Card
+              variant="default"
+              className="border-slate-200/80 dark:border-slate-700/60 overflow-hidden"
+            >
+              <Group justify="space-between" align="center" mb="md">
                 <div>
-                  <Text size="sm" c="dimmed">{card.title}</Text>
-                  <Text fw={700} size="xl">{card.value}</Text>
+                  <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
+                    Recent Pending Events
+                  </Text>
+                  <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+                    Events awaiting approval
+                  </Text>
                 </div>
-                <Badge color={card.color} size="xl" circle>
-                  {card.icon}
-                </Badge>
+                <UIButton
+                  component={Link}
+                  to={ROUTES.ADMIN_EVENTS}
+                  variant="ghost"
+                  size="sm"
+                  radius="xl"
+                  rightSection={<IconArrowRight size={14} />}
+                >
+                  View all
+                </UIButton>
               </Group>
+
+              <Divider style={{ borderColor: 'var(--app-border)' }} className="mb-4" />
+
+              {stats.recentPendingEvents.length === 0 ? (
+                <EmptyState
+                  icon={<IconCalendar size={32} />}
+                  title="No pending events"
+                  description="All caught up! No events awaiting approval."
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <Table.Thead>
+                      <Table.Tr
+                        style={{
+                          background: 'var(--app-border-light)',
+                        }}
+                      >
+                        {['Event', 'Host', 'Created', 'Actions'].map((h) => (
+                          <Table.Th
+                            key={h}
+                            style={{
+                              color: 'var(--app-text-secondary)',
+                              fontSize: '0.75rem',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {h}
+                          </Table.Th>
+                        ))}
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {stats.recentPendingEvents.map((event) => (
+                        <Table.Tr
+                          key={event.id}
+                          className="transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/50"
+                        >
+                          <Table.Td>
+                            <Text
+                              size="sm"
+                              fw={500}
+                              lineClamp={1}
+                              style={{ color: 'var(--app-text)' }}
+                            >
+                              {event.title}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+                              {event.host.displayName}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Text size="sm" style={{ color: 'var(--app-text-muted)' }}>
+                              {formatDate(event.createdAt)}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Group gap={4}>
+                              <ActionIcon
+                                size="sm"
+                                color="green"
+                                variant="subtle"
+                                component={Link}
+                                to={`/admin/events?approve=${event.id}`}
+                                aria-label="Approve event"
+                              >
+                                <IconCheck size={16} />
+                              </ActionIcon>
+                              <ActionIcon
+                                size="sm"
+                                color="red"
+                                variant="subtle"
+                                component={Link}
+                                to={`/admin/events?reject=${event.id}`}
+                                aria-label="Reject event"
+                              >
+                                <IconX size={16} />
+                              </ActionIcon>
+                              <ActionIcon
+                                size="sm"
+                                color="blue"
+                                variant="subtle"
+                                component={Link}
+                                to={ROUTES.EVENT_DETAIL(event.slug || event.id)}
+                                aria-label="View event"
+                              >
+                                <IconEye size={16} />
+                              </ActionIcon>
+                            </Group>
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </div>
+              )}
             </Card>
-          ))}
-        </SimpleGrid>
+          </motion.div>
 
-        {/* Recent Pending Events */}
-        <Card variant="default">
-          <Group justify="space-between" mb="md">
-            <Text fw={600} size="lg">Recent Pending Events</Text>
-            <Button component={Link} to={ROUTES.ADMIN_EVENTS} variant="subtle" size="xs" radius="md">
-              View all
-            </Button>
-          </Group>
+          {/* Recent Reports */}
+          <motion.div variants={slideUp} className="mt-8">
+            <Card
+              variant="default"
+              className="border-slate-200/80 dark:border-slate-700/60 overflow-hidden"
+            >
+              <Group justify="space-between" align="center" mb="md">
+                <div>
+                  <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
+                    Recent Reports
+                  </Text>
+                  <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+                    User-submitted event reports
+                  </Text>
+                </div>
+                <UIButton
+                  component={Link}
+                  to={ROUTES.ADMIN_REPORTS}
+                  variant="ghost"
+                  size="sm"
+                  radius="xl"
+                  rightSection={<IconArrowRight size={14} />}
+                >
+                  View all
+                </UIButton>
+              </Group>
 
-          {stats.recentPendingEvents.length === 0 ? (
-            <Text c="dimmed" ta="center" py="xl">No pending events.</Text>
-          ) : (
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Event</Table.Th>
-                  <Table.Th>Host</Table.Th>
-                  <Table.Th>Created</Table.Th>
-                  <Table.Th>Actions</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {stats.recentPendingEvents.map((event) => (
-                  <Table.Tr key={event.id}>
-                    <Table.Td>
-                      <Text size="sm" fw={500}>{event.title}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{event.host.displayName}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{formatDate(event.createdAt)}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap={4}>
-                        <ActionIcon
-                          size="sm"
-                          color="green"
-                          variant="subtle"
-                          component={Link}
-                          to={`/admin/events?approve=${event.id}`}
+              <Divider style={{ borderColor: 'var(--app-border)' }} className="mb-4" />
+
+              {stats.recentReports.length === 0 ? (
+                <EmptyState
+                  icon={<IconAlertCircle size={32} />}
+                  title="No open reports"
+                  description="No reports to review. The community is behaving!"
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <Table.Thead>
+                      <Table.Tr
+                        style={{
+                          background: 'var(--app-border-light)',
+                        }}
+                      >
+                        {['Event', 'Reason', 'Reporter', 'Status'].map((h) => (
+                          <Table.Th
+                            key={h}
+                            style={{
+                              color: 'var(--app-text-secondary)',
+                              fontSize: '0.75rem',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {h}
+                          </Table.Th>
+                        ))}
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {stats.recentReports.map((report) => (
+                        <Table.Tr
+                          key={report.id}
+                          className="transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/50"
                         >
-                          <IconCheck size={16} />
-                        </ActionIcon>
-                        <ActionIcon
-                          size="sm"
-                          color="red"
-                          variant="subtle"
-                          component={Link}
-                          to={`/admin/events?reject=${event.id}`}
-                        >
-                          <IconX size={16} />
-                        </ActionIcon>
-                        <ActionIcon
-                          size="sm"
-                          color="blue"
-                          variant="subtle"
-                          component={Link}
-                          to={`/events/detail/${event.id}`}
-                        >
-                          <IconEye size={16} />
-                        </ActionIcon>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          )}
-        </Card>
-
-        {/* Recent Reports */}
-        <Card variant="default">
-          <Group justify="space-between" mb="md">
-            <Text fw={600} size="lg">Recent Reports</Text>
-            <Button component={Link} to={ROUTES.ADMIN_REPORTS} variant="subtle" size="xs" radius="md">
-              View all
-            </Button>
-          </Group>
-
-          {stats.recentReports.length === 0 ? (
-            <Text c="dimmed" ta="center" py="xl">No open reports.</Text>
-          ) : (
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Event</Table.Th>
-                  <Table.Th>Reason</Table.Th>
-                  <Table.Th>Reporter</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {stats.recentReports.map((report) => (
-                  <Table.Tr key={report.id}>
-                    <Table.Td>
-                      <Text size="sm">{report.eventTitle}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color="red" size="xs" radius="md">{report.reason}</Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{report.reporter.displayName}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color="yellow" size="xs" radius="md">Open</Badge>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          )}
-        </Card>
+                          <Table.Td>
+                            <Text
+                              size="sm"
+                              fw={500}
+                              lineClamp={1}
+                              style={{ color: 'var(--app-text)' }}
+                            >
+                              {report.eventTitle}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Badge
+                              color="red"
+                              size="xs"
+                              radius="md"
+                              variant="light"
+                            >
+                              {report.reason}
+                            </Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+                              {report.reporter.displayName}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Badge
+                              color="yellow"
+                              size="xs"
+                              radius="md"
+                              variant="light"
+                              leftSection={<IconClock size={10} />}
+                            >
+                              Open
+                            </Badge>
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </div>
+              )}
+            </Card>
+          </motion.div>
+        </motion.div>
       </Stack>
-    </Container>
+    </PageContainer>
   );
 }

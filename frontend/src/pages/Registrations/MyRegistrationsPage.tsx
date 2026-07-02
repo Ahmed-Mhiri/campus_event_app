@@ -2,42 +2,100 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Container,
-  Title,
   Stack,
-  Tabs,
   SimpleGrid,
-  Card,
   Text,
   Badge,
   Group,
   Loader,
   Center,
-  Paper,
   Modal,
   Textarea,
   Button,
+  ThemeIcon,
+  Divider,
 } from '@mantine/core';
-import { IconCalendar, IconMapPin } from '@tabler/icons-react';
+import {
+  IconCalendar,
+  IconClock,
+  IconCheck,
+  IconX,
+  IconHourglass,
+  IconArrowRight,
+  IconTicket,
+  IconSearch,
+} from '@tabler/icons-react';
+import { motion } from 'framer-motion';
 import { useRsvp } from '@/hooks/useRsvp';
 import { ROUTES } from '@/constants/routes';
 import { formatDate } from '@/utils/dateFormatter';
+import { PageContainer } from '@/components/layout/PageContainer';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { Card } from '@/components/ui/Card';
+import { Button as UIButton } from '@/components/ui/Button';
+import { EmptyState } from '@/components/atoms/EmptyState';
+import { slideUp, staggerContainer } from '@/design-system/animations';
 import type { Rsvp } from '@/types';
 
 type TabKey = 'going' | 'waitlisted' | 'attended' | 'cancelled';
 
-const tabStatusMap: Record<TabKey, string> = {
-  going: 'GOING',
-  waitlisted: 'WAITLISTED',
-  attended: 'ATTENDED',
-  cancelled: 'CANCELLED',
+const tabConfig: Record<
+  TabKey,
+  {
+    label: string;
+    status: string;
+    icon: typeof IconCalendar;
+    color: string;
+    emptyTitle: string;
+    emptyDesc: string;
+  }
+> = {
+  going: {
+    label: 'Upcoming',
+    status: 'GOING',
+    icon: IconCalendar,
+    color: 'green',
+    emptyTitle: 'No upcoming events',
+    emptyDesc:
+      'You have no confirmed registrations. Browse events and find something exciting!',
+  },
+  waitlisted: {
+    label: 'Waitlisted',
+    status: 'WAITLISTED',
+    icon: IconHourglass,
+    color: 'yellow',
+    emptyTitle: 'Not on any waitlists',
+    emptyDesc:
+      'When popular events fill up, you can join the waitlist and get notified if a spot opens.',
+  },
+  attended: {
+    label: 'Attended',
+    status: 'ATTENDED',
+    icon: IconCheck,
+    color: 'blue',
+    emptyTitle: 'No past events',
+    emptyDesc:
+      'Events you check into will appear here. Time to make some memories!',
+  },
+  cancelled: {
+    label: 'Cancelled',
+    status: 'CANCELLED',
+    icon: IconX,
+    color: 'gray',
+    emptyTitle: 'No cancelled registrations',
+    emptyDesc:
+      'You have no cancelled registrations. Your commitment is admirable!',
+  },
 };
 
-const tabLabels: Record<TabKey, string> = {
-  going: 'Upcoming',
-  waitlisted: 'Waitlisted',
-  attended: 'Past',
-  cancelled: 'Cancelled',
+const statusConfig: Record<
+  string,
+  { color: string; label: string; icon: typeof IconCalendar }
+> = {
+  GOING: { color: 'green', label: 'Confirmed', icon: IconCheck },
+  WAITLISTED: { color: 'yellow', label: 'Waitlisted', icon: IconHourglass },
+  ATTENDED: { color: 'blue', label: 'Attended', icon: IconCheck },
+  CANCELLED: { color: 'gray', label: 'Cancelled', icon: IconX },
 };
 
 export function MyRegistrationsPage() {
@@ -45,13 +103,9 @@ export function MyRegistrationsPage() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [selectedRsvp, setSelectedRsvp] = useState<Rsvp | null>(null);
   const [cancelReason, setCancelReason] = useState('');
-  const { useMyRsvps, cancelRsvp } = useRsvp();
 
-  const { data, isLoading } = useMyRsvps(
-    tabStatusMap[activeTab],
-    0,
-    50
-  );
+  const { useMyRsvps, cancelRsvp, isCancelling } = useRsvp();
+  const { data, isLoading } = useMyRsvps(tabConfig[activeTab].status, 0, 50);
 
   const rsvps = data?.content || [];
 
@@ -63,117 +117,147 @@ export function MyRegistrationsPage() {
 
   const confirmCancel = async () => {
     if (!selectedRsvp) return;
-    await cancelRsvp({ rsvpId: selectedRsvp.id, reason: cancelReason || undefined });
+    await cancelRsvp({
+      rsvpId: selectedRsvp.id,
+      reason: cancelReason || undefined,
+    });
     setCancelModalOpen(false);
+    setSelectedRsvp(null);
+    setCancelReason('');
   };
 
-  const getStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      GOING: 'green',
-      WAITLISTED: 'yellow',
-      ATTENDED: 'blue',
-      CANCELLED: 'gray',
-    };
-    return <Badge color={colors[status] || 'gray'}>{status}</Badge>;
-  };
+  const currentTab = tabConfig[activeTab];
 
   return (
-    <Container size="xl" py="xl">
-      <Stack gap="lg">
-        <Title order={2}>My Registrations</Title>
+    <PageContainer size="lg">
+      <Stack gap="xl">
+        <PageHeader
+          title="My Registrations"
+          subtitle="Track your event registrations, waitlists, and attendance history"
+          breadcrumbs={[
+            { label: 'Profile', href: ROUTES.PROFILE },
+            { label: 'Registrations' },
+          ]}
+          actions={
+            <UIButton
+              component={Link}
+              to={ROUTES.EVENTS}
+              variant="primary"
+              radius="xl"
+              leftSection={<IconSearch size={16} />}
+            >
+              Browse Events
+            </UIButton>
+          }
+        />
 
-        <Tabs value={activeTab} onChange={(val) => setActiveTab(val as TabKey)}>
-          <Tabs.List>
-            {Object.entries(tabLabels).map(([key, label]) => (
-              <Tabs.Tab key={key} value={key}>
-                {label}
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={staggerContainer}
+        >
+          {/* Custom tab pills */}
+          <motion.div variants={slideUp}>
+            <Group
+              gap="xs"
+              className="border-b mb-6"
+              style={{ borderColor: 'var(--app-border)' }}
+            >
+              {(Object.keys(tabConfig) as TabKey[]).map((key) => {
+                const active = activeTab === key;
+                const config = tabConfig[key];
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActiveTab(key)}
+                    className={`relative px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 ${
+                      active
+                        ? 'text-violet-600 dark:text-violet-400'
+                        : 'hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                    style={active ? {} : { color: 'var(--app-text-secondary)' }}
+                    aria-pressed={active}
+                  >
+                    <config.icon size={16} />
+                    {config.label}
+                    {active && (
+                      <span className="absolute left-2 right-2 -bottom-px h-0.5 bg-violet-600 dark:bg-violet-400 rounded-full" />
+                    )}
+                  </button>
+                );
+              })}
+            </Group>
+          </motion.div>
 
-          {Object.keys(tabLabels).map((key) => (
-            <Tabs.Panel key={key} value={key} pt="md">
-              {isLoading ? (
-                <Center>
-                  <Loader size="md" />
-                </Center>
-              ) : rsvps.length === 0 ? (
-                <Paper withBorder p="xl" ta="center">
-                  <Text c="dimmed" size="lg">
-                    No {tabLabels[key as TabKey].toLowerCase()} registrations
-                  </Text>
-                  {key === 'going' && (
-                    <Button
+          {/* Content */}
+          <motion.div variants={slideUp}>
+            {isLoading ? (
+              <Center py="xl">
+                <Loader size="md" color="brand" />
+              </Center>
+            ) : rsvps.length === 0 ? (
+              <Card
+                variant="default"
+                className="border-slate-200/80 dark:border-slate-700/60"
+              >
+                <EmptyState
+                  icon={<currentTab.icon size={32} />}
+                  title={currentTab.emptyTitle}
+                  description={currentTab.emptyDesc}
+                />
+                {activeTab === 'going' && (
+                  <div className="text-center pb-8">
+                    <UIButton
                       component={Link}
                       to={ROUTES.EVENTS}
-                      variant="light"
-                      mt="md"
+                      variant="primary"
+                      radius="xl"
+                      leftSection={<IconSearch size={16} />}
                     >
-                      Browse events
-                    </Button>
-                  )}
-                </Paper>
-              ) : (
-                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-                  {rsvps.map((rsvp: Rsvp) => (
-                    <Card key={rsvp.id} withBorder shadow="sm" radius="md" p="md">
-                      <Card.Section withBorder inheritPadding py="xs">
-                        <Group justify="space-between">
-                          <Text fw={600} size="lg">{rsvp.eventTitle}</Text>
-                          {getStatusBadge(rsvp.status)}
-                        </Group>
-                      </Card.Section>
-
-                      <Stack gap="xs" mt="sm">
-                        <Group gap="xs">
-                          <IconCalendar size={16} />
-                          <Text size="sm">{formatDate(rsvp.createdAt)}</Text>
-                        </Group>
-                        <Group gap="xs">
-                          <IconMapPin size={16} />
-                          <Text size="sm" c="dimmed">Event ID: {rsvp.eventId.slice(0, 8)}</Text>
-                        </Group>
-                      </Stack>
-
-                      <Group justify="space-between" mt="md">
-                        <Button
-                          component={Link}
-                          to={`/events/detail/${rsvp.eventId}`}
-                          variant="light"
-                          size="xs"
-                        >
-                          View Event
-                        </Button>
-
-                        {rsvp.status === 'GOING' && (
-                          <Button
-                            color="red"
-                            variant="subtle"
-                            size="xs"
-                            onClick={() => handleCancel(rsvp)}
-                          >
-                            Cancel
-                          </Button>
-                        )}
-                      </Group>
-                    </Card>
-                  ))}
-                </SimpleGrid>
-              )}
-            </Tabs.Panel>
-          ))}
-        </Tabs>
+                      Find events
+                    </UIButton>
+                  </div>
+                )}
+              </Card>
+            ) : (
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
+                {rsvps.map((rsvp, index) => (
+                  <RegistrationCard
+                    key={rsvp.id}
+                    rsvp={rsvp}
+                    index={index}
+                    onCancel={handleCancel}
+                  />
+                ))}
+              </SimpleGrid>
+            )}
+          </motion.div>
+        </motion.div>
       </Stack>
 
       {/* Cancel Modal */}
       <Modal
         opened={cancelModalOpen}
-        onClose={() => setCancelModalOpen(false)}
-        title="Cancel Registration"
+        onClose={() => {
+          setCancelModalOpen(false);
+          setSelectedRsvp(null);
+          setCancelReason('');
+        }}
+        title={
+          <Text fw={600} style={{ color: 'var(--app-text)' }}>
+            Cancel Registration
+          </Text>
+        }
+        centered
+        radius="xl"
       >
-        <Stack>
-          <Text size="sm">
-            Are you sure you want to cancel your registration for "{selectedRsvp?.eventTitle}"?
+        <Stack gap="md">
+          <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+            Are you sure you want to cancel your registration for{' '}
+            <Text span fw={600} style={{ color: 'var(--app-text)' }}>
+              {selectedRsvp?.eventTitle}
+            </Text>
+            ?
           </Text>
           <Textarea
             label="Reason (optional)"
@@ -181,17 +265,143 @@ export function MyRegistrationsPage() {
             value={cancelReason}
             onChange={(e) => setCancelReason(e.currentTarget.value)}
             maxLength={500}
+            autosize
+            minRows={2}
+            radius="md"
+            styles={{ label: { color: 'var(--app-text)' } }}
           />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setCancelModalOpen(false)}>
-              Keep it
+          <Group justify="flex-end" gap="sm">
+            <Button
+              variant="default"
+              onClick={() => setCancelModalOpen(false)}
+              radius="md"
+            >
+              Keep Registration
             </Button>
-            <Button color="red" onClick={confirmCancel}>
-              Yes, cancel
+            <Button
+              color="red"
+              onClick={confirmCancel}
+              loading={isCancelling}
+              radius="md"
+            >
+              Yes, Cancel
             </Button>
           </Group>
         </Stack>
       </Modal>
-    </Container>
+    </PageContainer>
+  );
+}
+
+// ─── Sub-component: Registration Card ───
+
+interface RegistrationCardProps {
+  rsvp: Rsvp;
+  index: number;
+  onCancel: (rsvp: Rsvp) => void;
+}
+
+function RegistrationCard({ rsvp, index, onCancel }: RegistrationCardProps) {
+  const config = statusConfig[rsvp.status] || statusConfig.GOING;
+  const StatusIcon = config.icon;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: index * 0.05 }}
+    >
+      <Card
+        variant="default"
+        className="border-slate-200/80 dark:border-slate-700/60 overflow-hidden h-full flex flex-col"
+      >
+        {/* Header with icon — no event image since we don't have it */}
+        <div
+          className="relative h-24 flex items-center justify-center"
+          style={{ background: 'var(--app-border-light)' }}
+        >
+          <ThemeIcon size={48} radius="xl" variant="light" color="gray">
+            <IconTicket size={24} />
+          </ThemeIcon>
+          {/* Status badge overlay */}
+          <div className="absolute top-3 right-3">
+            <Badge
+              color={config.color}
+              variant="filled"
+              radius="md"
+              size="sm"
+              leftSection={<StatusIcon size={12} />}
+            >
+              {config.label}
+            </Badge>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 flex-1 flex flex-col">
+          <Text
+            fw={600}
+            size="md"
+            lineClamp={2}
+            className="mb-3 leading-snug"
+            style={{ color: 'var(--app-text)' }}
+          >
+            {rsvp.eventTitle}
+          </Text>
+
+          <Stack gap="xs" className="mb-4">
+            <Group gap="xs" wrap="nowrap">
+              <IconClock
+                size={14}
+                style={{ color: 'var(--app-text-muted)' }}
+              />
+              <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+                Registered {formatDate(rsvp.createdAt)}
+              </Text>
+            </Group>
+            <Group gap="xs" wrap="nowrap">
+              <IconCalendar
+                size={14}
+                style={{ color: 'var(--app-text-muted)' }}
+              />
+              <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+                Status: {rsvp.status}
+              </Text>
+            </Group>
+          </Stack>
+
+          <Divider
+            style={{ borderColor: 'var(--app-border)' }}
+            className="my-auto"
+          />
+
+          <Group justify="space-between" mt="md" className="pt-2">
+            <Button
+              component={Link}
+              to={ROUTES.EVENT_DETAIL(rsvp.eventId)}
+              variant="light"
+              color="brand"
+              size="sm"
+              radius="md"
+              rightSection={<IconArrowRight size={14} />}
+            >
+              View Event
+            </Button>
+
+            {rsvp.status === 'GOING' && (
+              <Button
+                color="red"
+                variant="subtle"
+                size="sm"
+                radius="md"
+                onClick={() => onCancel(rsvp)}
+              >
+                Cancel
+              </Button>
+            )}
+          </Group>
+        </div>
+      </Card>
+    </motion.div>
   );
 }

@@ -1,6 +1,6 @@
+// src/pages/Admin/AdminUsersPage.tsx
 import { useState } from 'react';
 import {
-  Container,
   Stack,
   Paper,
   Table,
@@ -16,6 +16,7 @@ import {
   TextInput,
   Modal,
   Menu,
+  Divider,
 } from '@mantine/core';
 import {
   IconSearch,
@@ -24,11 +25,16 @@ import {
   IconUserX,
   IconDots,
   IconShield,
+  IconUsers,
 } from '@tabler/icons-react';
+import { motion } from 'framer-motion';
 import { useAdmin } from '@/hooks/useAdmin';
 import { formatDate } from '@/utils/dateFormatter';
+import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { EmptyState } from '@/components/atoms/EmptyState';
+import { slideUp, staggerContainer } from '@/design-system/animations';
 import type { User } from '@/types';
 
 export function AdminUsersPage() {
@@ -110,149 +116,239 @@ export function AdminUsersPage() {
 
   if (isLoading) {
     return (
-      <Center h="50vh">
-        <Loader size="xl" />
-      </Center>
+      <PageContainer size="xl">
+        <Center h="60vh">
+          <Loader size="xl" color="brand" />
+        </Center>
+      </PageContainer>
     );
   }
 
   return (
-    <Container size="xl" py="xl">
-      <Stack gap="lg">
-        <PageHeader title="User Management" />
+    <PageContainer size="xl">
+      <Stack gap="xl">
+        <PageHeader
+          title="User Management"
+          subtitle="Manage users, trust levels, and account status"
+        />
 
-        <Paper withBorder p="md" radius="lg">
-          <Stack gap="md">
-            <Group justify="space-between">
-              <Group>
-                <TextInput
-                  placeholder="Search users..."
-                  value={search}
-                  onChange={(e) => setSearch(e.currentTarget.value)}
-                  leftSection={<IconSearch size={16} />}
-                  w={250}
-                  radius="md"
-                />
-                <Select
-                  placeholder="Trust level"
-                  data={trustOptions}
-                  value={trustFilter || ''}
-                  onChange={(val) => setTrustFilter(val || null)}
-                  clearable
-                  w={150}
-                  radius="md"
-                />
-              </Group>
-              <Text size="sm" c="dimmed">
-                Total: {data?.totalElements || 0} users
-              </Text>
-            </Group>
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={staggerContainer}
+        >
+          <motion.div variants={slideUp}>
+            <Paper
+              withBorder
+              p="lg"
+              radius="xl"
+              className="border-slate-200/80 dark:border-slate-700/60"
+              style={{ background: 'var(--app-surface)' }}
+            >
+              <Stack gap="md">
+                <Group justify="space-between" wrap="wrap" gap="sm">
+                  <Group gap="sm">
+                    <TextInput
+                      placeholder="Search users..."
+                      value={search}
+                      onChange={(e) => setSearch(e.currentTarget.value)}
+                      leftSection={<IconSearch size={16} style={{ color: 'var(--app-text-muted)' }} />}
+                      w={250}
+                      radius="md"
+                      styles={{
+                        input: { background: 'var(--app-bg)', color: 'var(--app-text)' },
+                      }}
+                    />
+                    <Select
+                      placeholder="Trust level"
+                      data={trustOptions}
+                      value={trustFilter || ''}
+                      onChange={(val) => setTrustFilter(val || null)}
+                      clearable
+                      w={150}
+                      radius="md"
+                      styles={{
+                        input: { background: 'var(--app-bg)', color: 'var(--app-text)' },
+                        dropdown: { background: 'var(--app-surface)', borderColor: 'var(--app-border)' },
+                      }}
+                    />
+                  </Group>
+                  <Text size="sm" style={{ color: 'var(--app-text-muted)' }}>
+                    Total: {data?.totalElements || 0} users
+                  </Text>
+                </Group>
 
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>User</Table.Th>
-                  <Table.Th>Email</Table.Th>
-                  <Table.Th>Role</Table.Th>
-                  <Table.Th>Trust Level</Table.Th>
-                  <Table.Th>Joined</Table.Th>
-                  <Table.Th>Actions</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {users.map((user: User) => (
-                  <Table.Tr key={user.id}>
-                    <Table.Td>
-                      <Group gap="xs">
-                        <Text fw={500}>{user.displayName}</Text>
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{user.universityEmail}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color={user.role === 'ADMIN' ? 'blue' : 'gray'} radius="md">
-                        {user.role}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color={trustColors[user.trustLevel] || 'gray'} radius="md">
-                        {user.trustLevel}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{formatDate(user.createdAt)}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Menu position="bottom-end" withinPortal>
-                        <Menu.Target>
-                          <ActionIcon variant="subtle">
-                            <IconDots size={16} />
-                          </ActionIcon>
-                        </Menu.Target>
-                        <Menu.Dropdown>
-                          <Menu.Item
-                            leftSection={<IconShield size={14} />}
-                            onClick={() => openTrustModal(user)}
-                          >
-                            Change Trust Level
-                          </Menu.Item>
-                          {user.trustLevel !== 'TRUSTED_HOST' && (
-                            <Menu.Item
-                              leftSection={<IconUserCheck size={14} />}
-                              onClick={() => handlePromote(user.id)}
+                {users.length === 0 ? (
+                  <EmptyState
+                    icon={<IconUsers size={32} />}
+                    title="No users found"
+                    description="Try adjusting your search or filter criteria."
+                  />
+                ) : (
+                  <Table.ScrollContainer minWidth={700} type="native">
+                    <Table
+                      striped
+                      highlightOnHover
+                      styles={{
+                        table: { background: 'var(--app-surface)' },
+                      }}
+                    >
+                      <Table.Thead>
+                        <Table.Tr style={{ background: 'var(--app-border-light)' }}>
+                          {['User', 'Email', 'Role', 'Trust Level', 'Joined', 'Actions'].map((h) => (
+                            <Table.Th
+                              key={h}
+                              style={{
+                                color: 'var(--app-text-secondary)',
+                                fontSize: '0.75rem',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                                fontWeight: 600,
+                              }}
                             >
-                              Promote to Trusted Host
-                            </Menu.Item>
-                          )}
-                          {user.trustLevel !== 'FLAGGED' && (
-                            <Menu.Item
-                              leftSection={<IconFlag size={14} />}
-                              color="orange"
-                              onClick={() => handleFlag(user.id)}
-                            >
-                              Flag User
-                            </Menu.Item>
-                          )}
-                          <Menu.Divider />
-                          <Menu.Item
-                            leftSection={<IconUserX size={14} />}
-                            color="red"
-                            onClick={() => handleDelete(user.id)}
+                              {h}
+                            </Table.Th>
+                          ))}
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {users.map((user: User) => (
+                          <Table.Tr
+                            key={user.id}
+                            className="transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/50"
                           >
-                            Delete User
-                          </Menu.Item>
-                        </Menu.Dropdown>
-                      </Menu>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
+                            <Table.Td>
+                              <Group gap="xs">
+                                <Text fw={500} size="sm" style={{ color: 'var(--app-text)' }}>
+                                  {user.displayName}
+                                </Text>
+                              </Group>
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+                                {user.universityEmail}
+                              </Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Badge
+                                color={user.role === 'ADMIN' ? 'blue' : 'gray'}
+                                radius="md"
+                                variant="light"
+                              >
+                                {user.role}
+                              </Badge>
+                            </Table.Td>
+                            <Table.Td>
+                              <Badge
+                                color={trustColors[user.trustLevel] || 'gray'}
+                                radius="md"
+                                variant="light"
+                              >
+                                {user.trustLevel}
+                              </Badge>
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm" style={{ color: 'var(--app-text-muted)' }}>
+                                {formatDate(user.createdAt)}
+                              </Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Menu position="bottom-end" withinPortal>
+                                <Menu.Target>
+                                  <ActionIcon
+                                    variant="subtle"
+                                    size="sm"
+                                    style={{ color: 'var(--app-text-muted)' }}
+                                  >
+                                    <IconDots size={16} />
+                                  </ActionIcon>
+                                </Menu.Target>
+                                <Menu.Dropdown
+                                  style={{
+                                    background: 'var(--app-surface)',
+                                    borderColor: 'var(--app-border)',
+                                  }}
+                                >
+                                  <Menu.Item
+                                    leftSection={<IconShield size={14} style={{ color: 'var(--app-text-secondary)' }} />}
+                                    onClick={() => openTrustModal(user)}
+                                    style={{ color: 'var(--app-text)' }}
+                                  >
+                                    Change Trust Level
+                                  </Menu.Item>
+                                  {user.trustLevel !== 'TRUSTED_HOST' && (
+                                    <Menu.Item
+                                      leftSection={<IconUserCheck size={14} style={{ color: 'var(--app-text-secondary)' }} />}
+                                      onClick={() => handlePromote(user.id)}
+                                      style={{ color: 'var(--app-text)' }}
+                                    >
+                                      Promote to Trusted Host
+                                    </Menu.Item>
+                                  )}
+                                  {user.trustLevel !== 'FLAGGED' && (
+                                    <Menu.Item
+                                      leftSection={<IconFlag size={14} style={{ color: 'var(--app-text-secondary)' }} />}
+                                      color="orange"
+                                      onClick={() => handleFlag(user.id)}
+                                    >
+                                      Flag User
+                                    </Menu.Item>
+                                  )}
+                                  <Menu.Divider style={{ borderColor: 'var(--app-border)' }} />
+                                  <Menu.Item
+                                    leftSection={<IconUserX size={14} />}
+                                    color="red"
+                                    onClick={() => handleDelete(user.id)}
+                                  >
+                                    Delete User
+                                  </Menu.Item>
+                                </Menu.Dropdown>
+                              </Menu>
+                            </Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+                  </Table.ScrollContainer>
+                )}
 
-            {totalPages > 1 && (
-              <Group justify="center">
-                <Pagination
-                  total={totalPages}
-                  value={page + 1}
-                  onChange={(p) => setPage(p - 1)}
-                />
-              </Group>
-            )}
-          </Stack>
-        </Paper>
+                {totalPages > 1 && (
+                  <Group justify="center" mt="md">
+                    <Pagination
+                      total={totalPages}
+                      value={page + 1}
+                      onChange={(p) => setPage(p - 1)}
+                      color="brand"
+                      styles={{
+                        control: { color: 'var(--app-text)', borderColor: 'var(--app-border)' },
+                      }}
+                    />
+                  </Group>
+                )}
+              </Stack>
+            </Paper>
+          </motion.div>
+        </motion.div>
       </Stack>
 
       {/* Trust Level Modal */}
       <Modal
         opened={trustModalOpen}
         onClose={() => setTrustModalOpen(false)}
-        title="Change Trust Level"
+        title={
+          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
+            Change Trust Level
+          </Text>
+        }
         radius="xl"
+        styles={{
+          content: { background: 'var(--app-surface)' },
+          header: { background: 'var(--app-surface)', borderBottom: '1px solid var(--app-border)' },
+        }}
       >
         <Stack>
-          <Text size="sm">
-            Update trust level for <strong>{selectedUser?.displayName}</strong>
+          <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+            Update trust level for <strong style={{ color: 'var(--app-text)' }}>{selectedUser?.displayName}</strong>
           </Text>
           <Select
             label="Trust Level"
@@ -260,12 +356,19 @@ export function AdminUsersPage() {
             value={newTrustLevel}
             onChange={(val) => setNewTrustLevel(val || 'NEW')}
             radius="md"
+            styles={{
+              label: { color: 'var(--app-text)' },
+              input: { background: 'var(--app-bg)', color: 'var(--app-text)' },
+              dropdown: { background: 'var(--app-surface)', borderColor: 'var(--app-border)' },
+            }}
           />
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setTrustModalOpen(false)} radius="md">
               Cancel
             </Button>
-            <Button onClick={confirmTrustUpdate} radius="md">Update</Button>
+            <Button onClick={confirmTrustUpdate} radius="md" color="brand">
+              Update
+            </Button>
           </Group>
         </Stack>
       </Modal>
@@ -302,6 +405,6 @@ export function AdminUsersPage() {
         confirmLabel="Delete"
         confirmColor="red"
       />
-    </Container>
+    </PageContainer>
   );
 }

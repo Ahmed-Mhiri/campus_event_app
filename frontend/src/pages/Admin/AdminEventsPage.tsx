@@ -1,7 +1,7 @@
+// src/pages/Admin/AdminEventsPage.tsx
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Container,
   Stack,
   Paper,
   Table,
@@ -14,7 +14,6 @@ import {
   Text,
   ActionIcon,
   Checkbox,
-  Button,
   Modal,
   Textarea,
 } from '@mantine/core';
@@ -23,11 +22,17 @@ import {
   IconX,
   IconFlag,
   IconEye,
+  IconCalendarOff,
 } from '@tabler/icons-react';
+import { motion } from 'framer-motion';
 import { useAdmin } from '@/hooks/useAdmin';
 import { formatDate } from '@/utils/dateFormatter';
+import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/atoms/EmptyState';
+import { slideUp, staggerContainer } from '@/design-system/animations';
 import type { Event } from '@/types';
 
 export function AdminEventsPage() {
@@ -141,153 +146,218 @@ export function AdminEventsPage() {
 
   if (isLoading) {
     return (
-      <Center h="50vh">
-        <Loader size="xl" />
-      </Center>
+      <PageContainer size="xl">
+        <Center h="60vh">
+          <Loader size="xl" color="brand" />
+        </Center>
+      </PageContainer>
     );
   }
 
   return (
-    <Container size="xl" py="xl">
-      <Stack gap="lg">
-        <PageHeader title="Event Moderation" />
+    <PageContainer size="xl">
+      <Stack gap="xl">
+        <PageHeader
+          title="Event Moderation"
+          subtitle="Review, approve, and manage all platform events"
+        />
 
-        <Paper withBorder p="md" radius="lg">
-          <Stack gap="md">
-            <Group justify="space-between">
-              <Select
-                placeholder="Filter by status"
-                data={statusOptions}
-                value={statusFilter || ''}
-                onChange={(val) => setStatusFilter(val || null)}
-                clearable
-                w={200}
-                radius="md"
-              />
-              <Text size="sm" c="dimmed">
-                {selectedEvents.size} selected
-              </Text>
-            </Group>
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={staggerContainer}
+        >
+          <motion.div variants={slideUp}>
+            <Paper
+              withBorder
+              p="lg"
+              radius="xl"
+              className="border-slate-200/80 dark:border-slate-700/60"
+              style={{ background: 'var(--app-surface)' }}
+            >
+              <Stack gap="md">
+                <Group justify="space-between" wrap="wrap" gap="sm">
+                  <Select
+                    placeholder="Filter by status"
+                    data={statusOptions}
+                    value={statusFilter || ''}
+                    onChange={(val) => setStatusFilter(val || null)}
+                    clearable
+                    w={200}
+                    radius="md"
+                    styles={{
+                      input: { background: 'var(--app-bg)', color: 'var(--app-text)' },
+                      dropdown: { background: 'var(--app-surface)', borderColor: 'var(--app-border)' },
+                    }}
+                  />
+                  <Text size="sm" style={{ color: 'var(--app-text-muted)' }}>
+                    {selectedEvents.size} selected
+                  </Text>
+                </Group>
 
-            {selectedEvents.size > 0 && (
-              <Group gap="sm">
-                <Button
-                  color="green"
-                  size="xs"
-                  onClick={handleBulkApprove}
-                  loading={actionLoading}
-                  radius="md"
-                >
-                  Approve Selected ({selectedEvents.size})
-                </Button>
-                <Button
-                  color="red"
-                  size="xs"
-                  onClick={handleBulkReject}
-                  loading={actionLoading}
-                  radius="md"
-                >
-                  Reject Selected ({selectedEvents.size})
-                </Button>
-              </Group>
-            )}
+                {selectedEvents.size > 0 && (
+                  <Group gap="sm">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleBulkApprove}
+                      isLoading={actionLoading}
+                      radius="md"
+                    >
+                      Approve Selected ({selectedEvents.size})
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={handleBulkReject}
+                      isLoading={actionLoading}
+                      radius="md"
+                    >
+                      Reject Selected ({selectedEvents.size})
+                    </Button>
+                  </Group>
+                )}
 
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>
-                    <Checkbox
-                      checked={selectedEvents.size === events.length && events.length > 0}
-                      onChange={(e) => handleSelectAll(e.currentTarget.checked)}
-                      indeterminate={selectedEvents.size > 0 && selectedEvents.size < events.length}
+                {events.length === 0 ? (
+                  <EmptyState
+                    icon={<IconCalendarOff size={32} />}
+                    title="No events found"
+                    description="Try adjusting your filters or check back later."
+                  />
+                ) : (
+                  <Table.ScrollContainer minWidth={700} type="native">
+                    <Table
+                      striped
+                      highlightOnHover
+                      styles={{
+                        table: { background: 'var(--app-surface)' },
+                      }}
+                    >
+                      <Table.Thead>
+                        <Table.Tr style={{ background: 'var(--app-border-light)' }}>
+                          <Table.Th>
+                            <Checkbox
+                              checked={selectedEvents.size === events.length && events.length > 0}
+                              onChange={(e) => handleSelectAll(e.currentTarget.checked)}
+                              indeterminate={selectedEvents.size > 0 && selectedEvents.size < events.length}
+                              aria-label="Select all events"
+                            />
+                          </Table.Th>
+                          {['Event', 'Host', 'Status', 'Created', 'Actions'].map((h) => (
+                            <Table.Th
+                              key={h}
+                              style={{
+                                color: 'var(--app-text-secondary)',
+                                fontSize: '0.75rem',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {h}
+                            </Table.Th>
+                          ))}
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {events.map((event: Event) => (
+                          <Table.Tr
+                            key={event.id}
+                            className="transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/50"
+                          >
+                            <Table.Td>
+                              <Checkbox
+                                checked={selectedEvents.has(event.id)}
+                                onChange={() => handleSelect(event.id)}
+                                aria-label={`Select ${event.title}`}
+                              />
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm" fw={500} lineClamp={1} style={{ color: 'var(--app-text)' }}>
+                                {event.title}
+                              </Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+                                {event.host.displayName}
+                              </Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Badge color={statusColors[event.status] || 'gray'} radius="md">
+                                {event.status}
+                              </Badge>
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm" style={{ color: 'var(--app-text-muted)' }}>
+                                {formatDate(event.createdAt)}
+                              </Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Group gap={4} wrap="nowrap">
+                                <ActionIcon
+                                  size="sm"
+                                  color="green"
+                                  variant="subtle"
+                                  onClick={() => handleApprove(event.id)}
+                                  disabled={event.status === 'PUBLISHED'}
+                                  aria-label="Approve event"
+                                >
+                                  <IconCheck size={16} />
+                                </ActionIcon>
+                                <ActionIcon
+                                  size="sm"
+                                  color="red"
+                                  variant="subtle"
+                                  onClick={() => handleReject(event.id)}
+                                  aria-label="Reject event"
+                                >
+                                  <IconX size={16} />
+                                </ActionIcon>
+                                <ActionIcon
+                                  size="sm"
+                                  color="yellow"
+                                  variant="subtle"
+                                  onClick={() => handleFlag(event.id)}
+                                  aria-label="Flag event"
+                                >
+                                  <IconFlag size={16} />
+                                </ActionIcon>
+                                <ActionIcon
+                                  size="sm"
+                                  color="blue"
+                                  variant="subtle"
+                                  component={Link}
+                                  to={`/events/detail/${event.id}`}
+                                  aria-label="View event"
+                                >
+                                  <IconEye size={16} />
+                                </ActionIcon>
+                              </Group>
+                            </Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+                  </Table.ScrollContainer>
+                )}
+
+                {totalPages > 1 && (
+                  <Group justify="center" mt="md">
+                    <Pagination
+                      total={totalPages}
+                      value={page + 1}
+                      onChange={(p) => setPage(p - 1)}
+                      color="brand"
+                      styles={{
+                        control: { color: 'var(--app-text)', borderColor: 'var(--app-border)' },
+                      }}
                     />
-                  </Table.Th>
-                  <Table.Th>Event</Table.Th>
-                  <Table.Th>Host</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Created</Table.Th>
-                  <Table.Th>Actions</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {events.map((event: Event) => (
-                  <Table.Tr key={event.id}>
-                    <Table.Td>
-                      <Checkbox
-                        checked={selectedEvents.has(event.id)}
-                        onChange={() => handleSelect(event.id)}
-                      />
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm" fw={500} lineClamp={1}>
-                        {event.title}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{event.host.displayName}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color={statusColors[event.status] || 'gray'} radius="md">
-                        {event.status}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{formatDate(event.createdAt)}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap={4} wrap="nowrap">
-                        <ActionIcon
-                          size="sm"
-                          color="green"
-                          variant="subtle"
-                          onClick={() => handleApprove(event.id)}
-                          disabled={event.status === 'PUBLISHED'}
-                        >
-                          <IconCheck size={16} />
-                        </ActionIcon>
-                        <ActionIcon
-                          size="sm"
-                          color="red"
-                          variant="subtle"
-                          onClick={() => handleReject(event.id)}
-                        >
-                          <IconX size={16} />
-                        </ActionIcon>
-                        <ActionIcon
-                          size="sm"
-                          color="yellow"
-                          variant="subtle"
-                          onClick={() => handleFlag(event.id)}
-                        >
-                          <IconFlag size={16} />
-                        </ActionIcon>
-                        <ActionIcon
-                          size="sm"
-                          color="blue"
-                          variant="subtle"
-                          component={Link}
-                          to={`/events/detail/${event.id}`}
-                        >
-                          <IconEye size={16} />
-                        </ActionIcon>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-
-            {totalPages > 1 && (
-              <Group justify="center">
-                <Pagination
-                  total={totalPages}
-                  value={page + 1}
-                  onChange={(p) => setPage(p - 1)}
-                />
-              </Group>
-            )}
-          </Stack>
-        </Paper>
+                  </Group>
+                )}
+              </Stack>
+            </Paper>
+          </motion.div>
+        </motion.div>
       </Stack>
 
       {/* Reject Modal */}
@@ -298,11 +368,19 @@ export function AdminEventsPage() {
           setRejectReason('');
           setPendingRejectId(null);
         }}
-        title="Reject Event"
+        title={
+          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
+            Reject Event
+          </Text>
+        }
         radius="xl"
+        styles={{
+          content: { background: 'var(--app-surface)' },
+          header: { background: 'var(--app-surface)', borderBottom: '1px solid var(--app-border)' },
+        }}
       >
         <Stack>
-          <Text size="sm">
+          <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
             Please provide a reason for rejecting this event. The host will be notified.
           </Text>
           <Textarea
@@ -314,12 +392,16 @@ export function AdminEventsPage() {
             minRows={3}
             required
             radius="md"
+            styles={{
+              label: { color: 'var(--app-text)' },
+              input: { background: 'var(--app-bg)', color: 'var(--app-text)' },
+            }}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setRejectModalOpen(false)} radius="md">
+            <Button variant="ghost" onClick={() => setRejectModalOpen(false)} radius="md">
               Cancel
             </Button>
-            <Button color="red" onClick={confirmReject} radius="md">
+            <Button variant="danger" onClick={confirmReject} radius="md">
               Reject Event
             </Button>
           </Group>
@@ -337,6 +419,6 @@ export function AdminEventsPage() {
         confirmColor={bulkConfirmModal?.type === 'approve' ? 'green' : 'red'}
         loading={actionLoading}
       />
-    </Container>
+    </PageContainer>
   );
 }

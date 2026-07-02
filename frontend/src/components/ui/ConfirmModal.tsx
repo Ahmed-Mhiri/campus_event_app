@@ -24,9 +24,25 @@ export function ConfirmModal({
   loading = false,
 }: ConfirmModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title={title} centered radius="xl">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={
+        <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
+          {title}
+        </Text>
+      }
+      centered
+      radius="xl"
+      styles={{
+        content: { background: 'var(--app-surface)' },
+        header: { background: 'var(--app-surface)', borderBottom: '1px solid var(--app-border)' },
+      }}
+    >
       <Stack>
-        <Text size="sm">{message}</Text>
+        <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+          {message}
+        </Text>
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose} radius="md">
             {cancelLabel}

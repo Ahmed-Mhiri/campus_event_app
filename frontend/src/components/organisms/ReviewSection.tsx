@@ -18,8 +18,10 @@ import {
   Badge,
   Select,
   Pagination,
+  Title,
+  Table,
 } from '@mantine/core';
-import { notifications } from '@mantine/notifications'; // <-- added
+import { notifications } from '@mantine/notifications';
 import {
   IconThumbUp,
   IconThumbUpFilled,
@@ -35,7 +37,7 @@ import type { Review } from '@/types';
 
 interface ReviewSectionProps {
   eventId: string;
-  hostId?: string; // kept for future use but not used currently
+  hostId?: string;
   canReview?: boolean;
   onReviewSubmitted?: () => void;
 }
@@ -130,21 +132,35 @@ export function ReviewSection({
 
   return (
     <Stack gap="md">
-      <Group justify="space-between">
-        <Text fw={600} size="lg">Reviews</Text>
+      <Group justify="space-between" wrap="wrap" gap="sm">
+        <Title order={3} size="h4" style={{ color: 'var(--app-text)' }}>
+          Reviews
+        </Title>
         <Select
           data={sortOptions}
           value={sort}
           onChange={(val) => setSort(val || 'helpfulCount,desc')}
           size="xs"
           w={150}
+          radius="md"
+          styles={{
+            input: { background: 'var(--app-bg)', color: 'var(--app-text)' },
+            dropdown: { background: 'var(--app-surface)', borderColor: 'var(--app-border)' },
+          }}
         />
       </Group>
 
-      {/* Review Form (only if user can review) */}
+      {/* Review Form */}
       {canReview && user && (
-        <Paper withBorder p="md" radius="md">
-          <Text fw={500} mb="sm">Write a Review</Text>
+        <Paper
+          withBorder
+          p="md"
+          radius="xl"
+          style={{ background: 'var(--app-surface)', borderColor: 'var(--app-border)' }}
+        >
+          <Text fw={500} mb="sm" style={{ color: 'var(--app-text)' }}>
+            Write a Review
+          </Text>
           <Stack gap="sm">
             <Rating value={rating} onChange={setRating} size="lg" fractions={2} />
             <Textarea
@@ -154,12 +170,18 @@ export function ReviewSection({
               maxLength={1000}
               minRows={2}
               autosize
+              radius="md"
+              styles={{
+                input: { background: 'var(--app-bg)', color: 'var(--app-text)' },
+              }}
             />
             <Group justify="flex-end">
               <Button
                 onClick={handleSubmitReview}
                 loading={isSubmitting}
                 disabled={rating === 0}
+                radius="md"
+                color="brand"
               >
                 Submit Review
               </Button>
@@ -174,8 +196,16 @@ export function ReviewSection({
           <Loader size="md" />
         </Center>
       ) : reviews.length === 0 ? (
-        <Paper withBorder p="xl" ta="center">
-          <Text c="dimmed">No reviews yet. Be the first to leave a review!</Text>
+        <Paper
+          withBorder
+          p="xl"
+          ta="center"
+          radius="xl"
+          style={{ background: 'var(--app-surface)', borderColor: 'var(--app-border)' }}
+        >
+          <Text style={{ color: 'var(--app-text-secondary)' }}>
+            No reviews yet. Be the first to leave a review!
+          </Text>
         </Paper>
       ) : (
         <Stack gap="md">
@@ -187,11 +217,16 @@ export function ReviewSection({
             const avatarSrc = review.reviewer.profileImageUrl || getAvatarUrl(review.reviewer.id) || undefined;
 
             return (
-              <Paper key={review.id} withBorder p="md" radius="md">
+              <Paper
+                key={review.id}
+                withBorder
+                p="md"
+                radius="xl"
+                style={{ background: 'var(--app-surface)', borderColor: 'var(--app-border)' }}
+              >
                 <Group align="flex-start" wrap="nowrap">
                   <Avatar
                     src={avatarSrc != null ? String(avatarSrc) : undefined}
-
                     radius="xl"
                     size={40}
                     alt={review.reviewer.displayName}
@@ -200,25 +235,32 @@ export function ReviewSection({
                   </Avatar>
 
                   <div style={{ flex: 1 }}>
-                    <Group justify="space-between">
+                    <Group justify="space-between" wrap="wrap" gap="xs">
                       <Group gap="xs">
-                        <Text fw={500}>{review.reviewer.displayName}</Text>
-                        <Badge size="xs" color="gray" variant="light">
+                        <Text fw={500} size="sm" style={{ color: 'var(--app-text)' }}>
+                          {review.reviewer.displayName}
+                        </Text>
+                        <Badge size="xs" color="gray" variant="light" radius="md">
                           {review.reviewer.trustLevel}
                         </Badge>
                       </Group>
                       <Group gap="xs">
-                        <Text size="xs" c="dimmed">
+                        <Text size="xs" style={{ color: 'var(--app-text-muted)' }}>
                           {formatDate(review.createdAt)}
                         </Text>
                         {(isReviewer || isAdmin) && (
                           <Menu position="bottom-end" withinPortal>
                             <Menu.Target>
-                              <ActionIcon size="sm" variant="subtle">
+                              <ActionIcon size="sm" variant="subtle" style={{ color: 'var(--app-text-muted)' }}>
                                 <IconDots size={16} />
                               </ActionIcon>
                             </Menu.Target>
-                            <Menu.Dropdown>
+                            <Menu.Dropdown
+                              style={{
+                                background: 'var(--app-surface)',
+                                borderColor: 'var(--app-border)',
+                              }}
+                            >
                               {(isReviewer || isAdmin) && (
                                 <Menu.Item
                                   color="red"
@@ -237,7 +279,9 @@ export function ReviewSection({
                     <Rating value={review.rating} readOnly size="sm" mb="xs" />
 
                     {review.comment && (
-                      <Text size="sm" mb="xs">{review.comment}</Text>
+                      <Text size="sm" mb="xs" style={{ color: 'var(--app-text-secondary)' }}>
+                        {review.comment}
+                      </Text>
                     )}
 
                     <Group gap="sm">
@@ -245,6 +289,7 @@ export function ReviewSection({
                         variant={isHelpful ? 'filled' : 'light'}
                         color={isHelpful ? 'blue' : 'gray'}
                         size="compact-xs"
+                        radius="md"
                         leftSection={
                           isHelpful ? <IconThumbUpFilled size={14} /> : <IconThumbUp size={14} />
                         }
@@ -258,6 +303,7 @@ export function ReviewSection({
                           variant="subtle"
                           color="gray"
                           size="compact-xs"
+                          radius="md"
                           leftSection={<IconFlag size={14} />}
                           onClick={() => {
                             setSelectedReview(review);
@@ -280,6 +326,10 @@ export function ReviewSection({
                 total={totalPages}
                 value={page + 1}
                 onChange={(p) => setPage(p - 1)}
+                color="brand"
+                styles={{
+                  control: { color: 'var(--app-text)', borderColor: 'var(--app-border)' },
+                }}
               />
             </Group>
           )}
@@ -294,10 +344,19 @@ export function ReviewSection({
           setSelectedReview(null);
           setReportReason('');
         }}
-        title="Report Review"
+        title={
+          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
+            Report Review
+          </Text>
+        }
+        radius="xl"
+        styles={{
+          content: { background: 'var(--app-surface)' },
+          header: { background: 'var(--app-surface)', borderBottom: '1px solid var(--app-border)' },
+        }}
       >
         <Stack>
-          <Text size="sm">
+          <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
             Why are you reporting this review? This will be sent to moderators for review.
           </Text>
           <Textarea
@@ -308,12 +367,17 @@ export function ReviewSection({
             required
             minRows={3}
             maxLength={500}
+            radius="md"
+            styles={{
+              label: { color: 'var(--app-text)' },
+              input: { background: 'var(--app-bg)', color: 'var(--app-text)' },
+            }}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setReportModalOpen(false)}>
+            <Button variant="default" onClick={() => setReportModalOpen(false)} radius="md">
               Cancel
             </Button>
-            <Button color="red" onClick={handleReport}>
+            <Button color="red" onClick={handleReport} radius="md">
               Submit Report
             </Button>
           </Group>
@@ -324,17 +388,26 @@ export function ReviewSection({
       <Modal
         opened={!!deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
-        title="Delete Review"
+        title={
+          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
+            Delete Review
+          </Text>
+        }
+        radius="xl"
+        styles={{
+          content: { background: 'var(--app-surface)' },
+          header: { background: 'var(--app-surface)', borderBottom: '1px solid var(--app-border)' },
+        }}
       >
         <Stack>
-          <Alert color="red" title="Are you sure?">
+          <Alert color="red" title="Are you sure?" radius="md">
             This action cannot be undone. The review will be permanently deleted.
           </Alert>
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setDeleteConfirm(null)}>
+            <Button variant="default" onClick={() => setDeleteConfirm(null)} radius="md">
               Cancel
             </Button>
-            <Button color="red" onClick={handleDelete}>
+            <Button color="red" onClick={handleDelete} radius="md">
               Delete Review
             </Button>
           </Group>
