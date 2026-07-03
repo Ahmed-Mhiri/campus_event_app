@@ -35,9 +35,19 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { slideUp, staggerContainer } from '@/design-system/animations';
 
+// ✅ Get backend base URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+
 export function MyProfilePage() {
   const { user } = useAuth();
   const [deleteModalOpened, setDeleteModalOpened] = useState(false);
+
+  // Helper to convert relative backend paths to full URLs
+  const getFullImageUrl = (url?: string | null) => {
+    if (!url) return undefined;
+    if (url.startsWith('http')) return url;
+    return `${API_BASE_URL}${url}`;
+  };
 
   const { useHostReviews } = useReviews();
   const { data: hostReviews, isLoading: reviewsLoading } = useHostReviews(user?.id || '', 0, 5);
@@ -54,7 +64,7 @@ export function MyProfilePage() {
     );
   }
 
-  const avatarSrc = user.profileImageUrl || getAvatarUrl(user.id) || undefined;
+  const avatarSrc = getFullImageUrl(user.profileImageUrl) || getAvatarUrl(user.id) || undefined;
 
   const trustColor = user.trustLevel === 'TRUSTED_HOST' ? 'green' : user.trustLevel === 'FLAGGED' ? 'red' : 'gray';
   const trustLabel = user.trustLevel === 'TRUSTED_HOST' ? 'Trusted Host' : user.trustLevel === 'FLAGGED' ? 'Flagged' : 'New User';
@@ -95,7 +105,6 @@ export function MyProfilePage() {
           <motion.div variants={slideUp}>
             <Card variant="elevated" className="overflow-hidden">
               <div className="relative">
-                {/* ✅ FIXED: Use CSS var for subtle gradient that works in both modes */}
                 <div
                   className="absolute inset-0 h-32"
                   style={{
@@ -121,7 +130,6 @@ export function MyProfilePage() {
                     </div>
 
                     <div className="flex-1 text-center sm:text-left min-w-0">
-                      {/* ✅ FIXED: Use style with CSS var instead of text-slate-900 */}
                       <Title
                         order={1}
                         className="text-2xl sm:text-3xl font-extrabold tracking-tight"
@@ -222,7 +230,6 @@ export function MyProfilePage() {
                       <action.icon size={24} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      {/* ✅ FIXED: CSS var for title */}
                       <Text fw={600} className="group-hover:transition-colors" style={{ color: 'var(--app-text)' }}>
                         {action.label}
                       </Text>
@@ -300,7 +307,7 @@ export function MyProfilePage() {
                           <Avatar
                             size={28}
                             radius="xl"
-                            src={review.reviewer?.profileImageUrl || undefined}
+                            src={getFullImageUrl(review.reviewer?.profileImageUrl) || undefined}
                           >
                             {review.reviewer?.displayName?.charAt(0)}
                           </Avatar>

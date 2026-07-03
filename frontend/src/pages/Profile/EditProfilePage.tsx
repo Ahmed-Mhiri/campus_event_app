@@ -7,7 +7,7 @@ import {
   Button,
   Avatar,
   Group,
-  FileButton, // ✅ Swapped FileInput for FileButton
+  FileButton,
   Divider,
   Text,
 } from '@mantine/core';
@@ -20,6 +20,9 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { slideUp } from '@/design-system/animations';
+
+// ✅ Get the backend base URL from environment, fallback to localhost:8081
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
 
 export function EditProfilePage() {
   const navigate = useNavigate();
@@ -40,11 +43,19 @@ export function EditProfilePage() {
     }
   };
 
+  // ✅ Convert relative backend image path to a full URL with the correct port
+  const getFullImageUrl = (url?: string | null) => {
+    if (!url) return undefined;
+    if (url.startsWith('http')) return url;
+    return `${API_BASE_URL}${url}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData();
     formData.append('displayName', displayName);
     if (bio) formData.append('bio', bio);
+    // ✅ Must match @RequestParam name in UpdateProfileRequest DTO
     if (avatarFile) formData.append('profileImage', avatarFile);
 
     await updateProfile(formData);
@@ -53,7 +64,11 @@ export function EditProfilePage() {
 
   if (!user) return null;
 
-  const avatarSrc = avatarPreview || user.profileImageUrl || getAvatarUrl(user.id) || undefined;
+  const avatarSrc =
+    avatarPreview ||
+    getFullImageUrl(user.profileImageUrl) ||
+    getAvatarUrl(user.id) ||
+    undefined;
 
   return (
     <PageContainer size="md">
@@ -83,7 +98,6 @@ export function EditProfilePage() {
                       style={{ border: '4px solid var(--app-border)' }}
                     />
                     <div className="absolute -bottom-1 -right-1">
-                      {/* ✅ FIXED: Using FileButton to wrap a custom clickable button */}
                       <FileButton onChange={handleFileChange} accept="image/png,image/jpeg,image/webp">
                         {(props) => (
                           <button

@@ -1,3 +1,4 @@
+//frontend\src\components\organisms\EventFeed.tsx
 import { useInView } from 'react-intersection-observer';
 import { SimpleGrid, Loader, Center, Text, Stack } from '@mantine/core';
 import { useEvents } from '@/hooks/useEvents';

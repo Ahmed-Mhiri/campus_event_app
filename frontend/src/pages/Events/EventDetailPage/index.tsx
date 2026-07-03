@@ -14,6 +14,7 @@ import {
   Group,
   Title,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { IconArrowLeft, IconAlertCircle } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { eventsApi } from '@/api/eventsApi';
@@ -34,13 +35,30 @@ export function EventDetailPage() {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuthStore();
 
+  // ✅ Detect if the URL parameter is a UUID (from search bar) or a text slug (from cards)
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug || '');
+
   const { data: event, isLoading, error } = useQuery({
-    queryKey: ['event', slug],
-    queryFn: () => {
-      if (isAuthenticated) {
-        return eventsApi.getEventBySlug(slug!).then((res) => res.data.data);
+    queryKey: ['event', slug, isAuthenticated],
+    queryFn: async () => {
+      if (isUuid) {
+        // Fetch by UUID
+        if (isAuthenticated) {
+          const res = await eventsApi.getEventById(slug!);
+          return res.data.data;
+        } else {
+          const res = await eventsApi.getPublicEventById(slug!);
+          return res.data.data;
+        }
       } else {
-        return eventsApi.getPublicEventBySlug(slug!).then((res) => res.data.data);
+        // Fetch by slug
+        if (isAuthenticated) {
+          const res = await eventsApi.getEventBySlug(slug!);
+          return res.data.data;
+        } else {
+          const res = await eventsApi.getPublicEventBySlug(slug!);
+          return res.data.data;
+        }
       }
     },
     enabled: !!slug,
@@ -71,6 +89,24 @@ export function EventDetailPage() {
     mutationFn: (id: string) => eventsApi.softDeleteEvent(id),
     onSuccess: () => navigate(ROUTES.MY_EVENTS),
   });
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href)
+      .then(() => {
+        notifications.show({
+          title: 'Link copied!',
+          message: 'Event link copied to your clipboard.',
+          color: 'green',
+        });
+      })
+      .catch(() => {
+        notifications.show({
+          title: 'Error',
+          message: 'Failed to copy link.',
+          color: 'red',
+        });
+      });
+  };
 
   if (isLoading) {
     return (
@@ -112,7 +148,6 @@ export function EventDetailPage() {
     setCancelRsvpModalOpen(false);
     setCancelRsvpReason('');
   };
-  const handleShare = () => navigator.clipboard.writeText(window.location.href);
 
   return (
     <PageContainer size="lg">

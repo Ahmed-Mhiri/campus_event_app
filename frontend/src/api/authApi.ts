@@ -47,9 +47,12 @@ export const authApi = {
   getMe: () =>
     api.get<ApiResponse<User>>('/api/auth/me'),
 
+  // ✅ CHANGED: api.put → api.post, explicit multipart header
   updateProfile: (formData: FormData) =>
-    api.put<ApiResponse<User>>('/api/auth/me', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    api.post<ApiResponse<any>>('/api/auth/me', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     }),
 
   changePassword: (data: ChangePasswordRequest) =>

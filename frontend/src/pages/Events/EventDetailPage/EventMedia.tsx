@@ -2,13 +2,25 @@ import { Box, Image, SimpleGrid } from '@mantine/core';
 import { Carousel } from '@mantine/carousel';
 import type { EventMedia as EventMediaType } from '@/types';
 
+// Critical Fix: Define the backend URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+
+const getFullImageUrl = (url?: string) => {
+  if (!url) return undefined;
+  if (url.startsWith('http')) return url;
+  return `${API_BASE_URL}${url}`;
+};
+
 interface EventMediaProps {
   media: EventMediaType[];
   title: string;
 }
 
 export function EventMedia({ media, title }: EventMediaProps) {
-  const coverImage = media?.find((m) => m.displayOrder === 0)?.url || media?.[0]?.url;
+  const rawCoverImage = media?.find((m) => m.displayOrder === 0)?.url || media?.[0]?.url;
+  
+  // CRITICAL FIX: Apply the URL helper so the browser finds the file on port 8081
+  const coverImage = getFullImageUrl(rawCoverImage);
   const images = media?.filter((m) => m.mediaType === 'IMAGE') || [];
   const videos = media?.filter((m) => m.mediaType === 'VIDEO') || [];
 
@@ -38,7 +50,8 @@ export function EventMedia({ media, title }: EventMediaProps) {
         >
           {images.map((img) => (
             <Carousel.Slide key={img.id}>
-              <Image src={img.url} alt={title} height={280} fit="cover" radius="lg" />
+              {/* CRITICAL FIX: Applied helper to carousel images */}
+              <Image src={getFullImageUrl(img.url)} alt={title} height={280} fit="cover" radius="lg" />
             </Carousel.Slide>
           ))}
         </Carousel>
@@ -48,7 +61,8 @@ export function EventMedia({ media, title }: EventMediaProps) {
           {videos.map((video) => (
             <video
               key={video.id}
-              src={video.url}
+              // CRITICAL FIX: Applied helper to videos
+              src={getFullImageUrl(video.url)}
               controls
               className="w-full rounded-xl bg-black"
             />

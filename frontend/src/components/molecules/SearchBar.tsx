@@ -15,17 +15,23 @@ export function SearchBar({ placeholder = 'Search events, users, categories...',
   const [query, setQuery] = useState('');
   const { suggestions, loading } = useSearch(query);
 
-  const data = suggestions.map((item) => ({
-    value: item.value,
-    label: item.value,
-    group: item.type,
+  // Deduplicate suggestions by value to prevent Mantine Autocomplete crashes
+  const uniqueSuggestions = Array.from(
+    new Map(suggestions.map((item) => [item.value, item])).values()
+  );
+
+  // ✅ CRITICAL: Do NOT use 'group' – it causes Mantine v7 to crash.
+  const data = uniqueSuggestions.map((item) => ({
+    value: String(item.value || ''),
+    label: String(item.value || ''),
+    itemType: item.type || 'OTHER', // renamed from 'group'
     id: item.id,
-    subtitle: item.subtitle,
-    type: item.type,
+    subtitle: item.subtitle || '',
+    type: item.type || 'OTHER',
   }));
 
   const handleSelect = (selectedValue: string) => {
-    const selected = suggestions.find((s) => s.value === selectedValue);
+    const selected = uniqueSuggestions.find((s) => s.value === selectedValue);
     if (!selected) return;
 
     switch (selected.type) {
@@ -47,6 +53,15 @@ export function SearchBar({ placeholder = 'Search events, users, categories...',
     setQuery('');
   };
 
+  // Pressing Enter triggers a raw text search
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && query.trim().length > 0) {
+      navigate(`${ROUTES.EVENTS}?q=${encodeURIComponent(query.trim())}`);
+      setQuery('');
+      e.currentTarget.blur();
+    }
+  };
+
   return (
     <Autocomplete
       placeholder={placeholder}
@@ -54,13 +69,14 @@ export function SearchBar({ placeholder = 'Search events, users, categories...',
       onChange={setQuery}
       data={data}
       onOptionSubmit={handleSelect}
+      onKeyDown={handleKeyDown}
       leftSection={<IconSearch size={16} aria-hidden="true" />}
       rightSection={loading ? <Loader size="xs" aria-label="Loading search results" /> : null}
       size={size}
       radius="xl"
       aria-label="Search"
       renderOption={({ option }) => {
-        const suggestion = suggestions.find((s) => s.value === option.value);
+        const suggestion = uniqueSuggestions.find((s) => s.value === option.value);
         if (!suggestion) return null;
         return (
           <Group wrap="nowrap" gap="xs">
@@ -68,7 +84,9 @@ export function SearchBar({ placeholder = 'Search events, users, categories...',
               <Text size="sm" fw={500}>{suggestion.value}</Text>
               <Text size="xs" c="dimmed">{suggestion.subtitle}</Text>
             </div>
-            <Text size="xs" c="dimmed" tt="capitalize">{suggestion.type.toLowerCase()}</Text>
+            <Text size="xs" c="dimmed" tt="capitalize">
+              {suggestion.type?.toLowerCase() || 'other'}
+            </Text>
           </Group>
         );
       }}

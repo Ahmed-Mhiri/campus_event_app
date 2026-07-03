@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Image, Text, Group, Badge, Button, Avatar } from '@mantine/core';
 import { motion } from 'framer-motion';
 import { IconCalendar, IconMapPin, IconCrown } from '@tabler/icons-react';
@@ -11,6 +11,8 @@ import { CategoryChip } from './CategoryChip';
 import { UserTrustBadge } from './UserTrustBadge';
 import { CapacityBar } from './CapacityBar';
 import { Card as UICard } from '@/components/ui/Card';
+import { useRsvp } from '@/hooks/useRsvp';
+import { useAuthStore } from '@/stores/authStore';
 
 interface EventCardProps {
   event: Event;
@@ -18,6 +20,7 @@ interface EventCardProps {
 
 export function EventCard({ event }: EventCardProps) {
   const {
+    id,
     slug,
     title,
     location,
@@ -31,6 +34,10 @@ export function EventCard({ event }: EventCardProps) {
     myRsvpStatus,
     isHost,
   } = event;
+
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuthStore();
+  const { createRsvp, isCreating } = useRsvp(id);
 
   const coverImage =
     media?.find((m) => m.mediaType === 'IMAGE' && m.displayOrder === 0)
@@ -90,13 +97,7 @@ export function EventCard({ event }: EventCardProps) {
 
         {/* Content */}
         <div className="flex flex-col flex-1 gap-2 mt-3">
-          <Text
-            fw={600}
-            size="xl"
-            lineClamp={2}
-            lh={1.3}
-            className="tracking-tight"
-          >
+          <Text fw={600} size="xl" lineClamp={2} lh={1.3} className="tracking-tight">
             {title}
           </Text>
 
@@ -127,39 +128,64 @@ export function EventCard({ event }: EventCardProps) {
 
           <CapacityBar current={currentRsvpCount} max={maxCapacity} />
 
+          {/* ✅ Fixed nested link issue: use div + onClick instead of Link */}
           <Group gap="xs" align="center" className="mt-auto pt-3">
-            <Avatar src={avatarSrc} size={24} radius="xl" alt={host.displayName} />
+            <div
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                navigate(ROUTES.USER_PROFILE(host.id));
+              }}
+              className="rounded-full cursor-pointer transition-transform hover:scale-105"
+            >
+              <Avatar src={avatarSrc} size={24} radius="xl" alt={host.displayName} />
+            </div>
             <Text
-              component={Link}
-              to={ROUTES.USER_PROFILE(host.id)}
               size="xs"
               fw={500}
               c="dimmed"
-              className="no-underline hover:text-brand-600"
-              onClick={(e) => e.stopPropagation()}
+              className="cursor-pointer hover:text-brand-600 transition-colors"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                navigate(ROUTES.USER_PROFILE(host.id));
+              }}
             >
               {host.displayName}
             </Text>
             <UserTrustBadge trustLevel={host.trustLevel} size="xs" showLabel={false} />
           </Group>
 
-<Button
-  size="sm"
-  radius="md"
-  variant={myRsvpStatus === 'GOING' ? 'filled' : 'light'}
-  color={myRsvpStatus === 'GOING' ? 'green' : 'brand'}
-  fullWidth
-  disabled={isCancelled || isCompleted}
-  onClick={(e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // RSVP action
-  }}
-  className="mt-2 min-h-[44px]"
-  aria-label={rsvpLabel}
->
-  {rsvpLabel}
-</Button>
+          {/* RSVP Button */}
+          <Button
+            size="sm"
+            radius="md"
+            variant={myRsvpStatus === 'GOING' ? 'filled' : 'light'}
+            color={myRsvpStatus === 'GOING' ? 'green' : 'brand'}
+            fullWidth
+            disabled={isCancelled || isCompleted || isHost}
+            loading={isCreating}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+
+              if (!isAuthenticated) {
+                navigate(ROUTES.LOGIN);
+                return;
+              }
+
+              if (myRsvpStatus === 'GOING' || myRsvpStatus === 'WAITLISTED') {
+                navigate(ROUTES.EVENT_DETAIL(slug));
+                return;
+              }
+
+              createRsvp();
+            }}
+            className="mt-2 min-h-[44px]"
+            aria-label={rsvpLabel}
+          >
+            {rsvpLabel}
+          </Button>
         </div>
       </UICard>
     </motion.div>

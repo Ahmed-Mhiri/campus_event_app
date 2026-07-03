@@ -1,4 +1,3 @@
-// src/hooks/useRsvp.ts
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { rsvpApi } from '@/api/rsvpApi';
@@ -22,6 +21,10 @@ export function useRsvp(eventId?: string) {
       queryClient.invalidateQueries({ queryKey: ['event', eventId] });
       queryClient.invalidateQueries({ queryKey: ['my-rsvps'] });
       queryClient.invalidateQueries({ queryKey: ['my-rsvp', eventId] });
+      // ✅ Invalidate all event feeds so cards update instantly
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      queryClient.invalidateQueries({ queryKey: ['featured-events'] });
+      queryClient.invalidateQueries({ queryKey: ['public-events'] });
     },
     onError: (error: any) => {
       const msg = error?.response?.data?.message || 'Failed to register.';
@@ -42,6 +45,10 @@ export function useRsvp(eventId?: string) {
       queryClient.invalidateQueries({ queryKey: ['event', eventId] });
       queryClient.invalidateQueries({ queryKey: ['my-rsvps'] });
       queryClient.invalidateQueries({ queryKey: ['my-rsvp', eventId] });
+      // ✅ Invalidate all event feeds
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      queryClient.invalidateQueries({ queryKey: ['featured-events'] });
+      queryClient.invalidateQueries({ queryKey: ['public-events'] });
     },
     onError: (error: any) => {
       const msg = error?.response?.data?.message || 'Failed to cancel.';
@@ -81,7 +88,7 @@ export function useRsvp(eventId?: string) {
     });
   };
 
-  // ----- Get my RSVP for a specific event (NEW) -----
+  // ----- Get my RSVP for a specific event -----
   const useMyRsvpForEvent = (eventId: string) => {
     return useQuery({
       queryKey: ['my-rsvp', eventId],
@@ -176,7 +183,7 @@ export function useRsvp(eventId?: string) {
     useMyRsvps,
     useRsvpPosition,
     useEventRsvps,
-    useMyRsvpForEvent, // <-- NOW INCLUDED
+    useMyRsvpForEvent,
 
     // Status
     isCreating: createRsvpMutation.isPending,

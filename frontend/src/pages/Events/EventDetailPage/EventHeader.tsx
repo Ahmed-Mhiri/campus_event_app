@@ -63,7 +63,15 @@ export function EventHeader({ event }: EventHeaderProps) {
         style={{ background: 'var(--app-surface)' }}
       >
         <Group gap="md" wrap="nowrap">
-          <Avatar src={avatarSrc} size={52} radius="xl" alt={host.displayName} />
+          <Link to={ROUTES.USER_PROFILE(host.id)} className="shrink-0 rounded-full">
+            <Avatar 
+              src={avatarSrc} 
+              size={52} 
+              radius="xl" 
+              alt={host.displayName} 
+              className="transition-transform hover:scale-105"
+            />
+          </Link>
           <div className="flex-1 min-w-0">
             <Group gap="xs" wrap="nowrap">
               <Text

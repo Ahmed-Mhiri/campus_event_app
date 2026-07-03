@@ -1,4 +1,3 @@
-// src/components/molecules/MediaUploader/MediaUploader.tsx
 import { useState, useCallback } from 'react';
 import {
   Stack,
@@ -18,6 +17,15 @@ import { IconUpload, IconX, IconPhoto, IconArrowsSort } from '@tabler/icons-reac
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { eventsApi } from '@/api/eventsApi';
 import type { EventMedia } from '@/types';
+
+// Critical Fix: Define the backend URL to fix broken image previews
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+
+const getFullImageUrl = (url?: string) => {
+  if (!url) return undefined;
+  if (url.startsWith('http')) return url;
+  return `${API_BASE_URL}${url}`;
+};
 
 interface MediaUploaderProps {
   eventId: string;
@@ -69,7 +77,6 @@ export function MediaUploader({
       const currentVideos = media.filter((m) => m.mediaType === 'VIDEO');
 
       if (images.length + currentImages.length > maxImages) {
-        // You can show a notification here
         return;
       }
       if (videos.length + currentVideos.length > maxVideos) {
@@ -78,8 +85,11 @@ export function MediaUploader({
 
       setUploading(true);
       const formData = new FormData();
-      images.forEach((f) => formData.append('images[]', f));
-      videos.forEach((f) => formData.append('videos[]', f));
+      
+      // CRITICAL FIX: Removed the [] from 'images[]' and 'videos[]' 
+      // so Spring Boot can map it to @RequestParam("images") correctly!
+      images.forEach((f) => formData.append('images', f));
+      videos.forEach((f) => formData.append('videos', f));
 
       uploadMutation.mutate(formData, {
         onSettled: () => setUploading(false),
@@ -147,7 +157,8 @@ export function MediaUploader({
             <Paper key={item.id} withBorder p="sm" radius="md" pos="relative">
               {isImage(item) ? (
                 <Image
-                  src={item.thumbnailUrl || item.url}
+                  // CRITICAL FIX: Added getFullImageUrl so the thumbnail loads correctly
+                  src={getFullImageUrl(item.thumbnailUrl || item.url)}
                   alt={item.filename}
                   fit="cover"
                   height={120}
@@ -155,7 +166,8 @@ export function MediaUploader({
               ) : (
                 <Box style={{ position: 'relative', height: 120, background: '#000' }}>
                   <video
-                    src={item.url}
+                    // CRITICAL FIX: Added getFullImageUrl for video previews
+                    src={getFullImageUrl(item.url)}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
                   <Badge style={{ position: 'absolute', bottom: 4, right: 4 }}>Video</Badge>

@@ -6,7 +6,7 @@ import {
   TextInput,
   Textarea,
   NumberInput,
-  Select,
+  MultiSelect,
   Button,
   Group,
   Divider,
@@ -40,15 +40,15 @@ export function EventForm({ initialValues, eventId, isDraft = false }: EventForm
       startTime: initialValues?.startTime ? new Date(initialValues.startTime) : null,
       endTime: initialValues?.endTime ? new Date(initialValues.endTime) : null,
       maxCapacity: initialValues?.maxCapacity || 10,
-      categoryIds: initialValues?.categories?.map((c) => c.id) || [],
+      categoryIds: initialValues?.categories?.map((c) => String(c.id)) || [],
       slug: initialValues?.slug || '',
     },
     validate: {
       title: (value) => (value.length < 3 ? 'Title must be at least 3 characters' : null),
       location: (value) => (value.length < 1 ? 'Location is required' : null),
-      startTime: (value) => (value === null ? 'Start time is required' : null),
+      startTime: (value) => (!value ? 'Start time is required' : null),
       endTime: (value, values) => {
-        if (value === null) return 'End time is required';
+        if (!value) return 'End time is required';
         if (values.startTime && value <= values.startTime) {
           return 'End time must be after start time';
         }
@@ -59,59 +59,106 @@ export function EventForm({ initialValues, eventId, isDraft = false }: EventForm
   });
 
   const handleSubmit = async (publish: boolean = false) => {
+    console.log('1. Submit button clicked!');
+
     const validation = form.validate();
+
     if (validation.hasErrors) {
+      console.error('2. Frontend validation blocked:', validation.errors);
+      const errorFields = Object.keys(validation.errors).join(', ');
       notifications.show({
-        title: 'Validation Error',
-        message: 'Please fix the highlighted fields.',
+        title: 'Missing Information',
+        message: `Please fix the errors in these fields: ${errorFields}`,
         color: 'red',
       });
       return;
     }
 
+    console.log('2. Validation passed! Prepping payload...');
     setLoading(true);
+
     try {
-      const payload: CreateEventRequest = {
-        title: form.values.title,
-        description: form.values.description || undefined,
-        location: form.values.location,
-        startTime: form.values.startTime!.toISOString(),
-        endTime: form.values.endTime!.toISOString(),
+      // ✅ Enforce that the values are Date objects (avoids Mantine string bug)
+      const startDate = new Date(form.values.startTime!);
+      const endDate = new Date(form.values.endTime!);
+
+      // Build clean payload – only include optional fields if they have content
+      const payload: any = {
+        title: form.values.title.trim(),
+        location: form.values.location.trim(),
+        // ✅ Spring Boot 'Instant' requires the 'Z' from toISOString()
+        startTime: startDate.toISOString(),
+        endTime: endDate.toISOString(),
         maxCapacity: form.values.maxCapacity,
-        categoryIds: form.values.categoryIds.length > 0 ? form.values.categoryIds : undefined,
-        slug: form.values.slug || undefined,
       };
+
+      if (form.values.description?.trim()) {
+        payload.description = form.values.description.trim();
+      }
+      if (form.values.categoryIds && form.values.categoryIds.length > 0) {
+        payload.categoryIds = form.values.categoryIds.map(Number);
+      }
+      if (form.values.slug?.trim()) {
+        payload.slug = form.values.slug.trim();
+      }
+
+      console.log('3. Sending clean payload to backend:', payload);
 
       let response;
       if (eventId) {
-        // Update existing event
         response = await eventsApi.updateEvent(eventId, payload);
       } else if (!publish && isDraft) {
-        // Create draft
         response = await eventsApi.createDraft(payload);
       } else {
-        // Create and publish
         response = await eventsApi.createEvent(payload);
       }
 
+      console.log('4. Backend success!', response.data);
       const event = response.data.data;
+
       notifications.show({
         title: 'Success!',
-        message: eventId ? 'Event updated successfully.' : 'Event created successfully.',
+        message: event?.status === 'UNDER_REVIEW'
+          ? 'Event submitted for admin approval.'
+          : (eventId ? 'Event updated.' : 'Event created and published.'),
         color: 'green',
       });
 
-      // If we have a slug, navigate to it; otherwise use the event ID
-      if (event?.slug) {
+      if (event?.status === 'PUBLISHED' && event?.slug) {
         navigate(ROUTES.EVENT_DETAIL(event.slug));
-      } else if (event?.id) {
-        navigate(`/events/detail/${event.id}`);
       } else {
-        navigate(ROUTES.EVENTS);
+        navigate(ROUTES.MY_EVENTS);
       }
     } catch (error: any) {
-      const msg = error?.response?.data?.message || 'Something went wrong.';
-      notifications.show({ title: 'Error', message: msg, color: 'red' });
+      // Deep inspection logs
+      console.error('4. FATAL ERROR DETAILS:', error);
+
+      let msg = 'Something went wrong.';
+
+      if (error.response) {
+        console.error('-> Backend status:', error.response.status);
+        console.error('-> Backend data:', error.response.data);
+
+        if (error.response.data?.message) {
+          msg = error.response.data.message;
+        } else if (error.response.data?.errors) {
+          const validationErrors = error.response.data.errors;
+          const firstError = Array.isArray(validationErrors)
+            ? validationErrors[0]?.defaultMessage
+            : Object.values(validationErrors)[0];
+          msg = `Backend validation failed: ${firstError || 'Invalid data'}`;
+        } else {
+          msg = `Backend rejected with status ${error.response.status}`;
+        }
+      } else if (error.request) {
+        console.error('-> No response received – CORS or network failure.');
+        msg = 'Cannot connect to server. Check your network or CORS policy.';
+      } else {
+        console.error('-> Request failed before leaving browser:', error.message);
+        msg = `Frontend error: ${error.message}`;
+      }
+
+      notifications.show({ title: 'Error', message: String(msg), color: 'red' });
     } finally {
       setLoading(false);
     }
@@ -178,11 +225,10 @@ export function EventForm({ initialValues, eventId, isDraft = false }: EventForm
             {...form.getInputProps('maxCapacity')}
           />
 
-          <Select
+          <MultiSelect
             label="Categories"
             placeholder="Select categories"
             data={categoryOptions}
-            multiple
             searchable
             clearable
             {...form.getInputProps('categoryIds')}

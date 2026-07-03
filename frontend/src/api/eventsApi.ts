@@ -1,5 +1,6 @@
 // src/api/eventsApi.ts
 import { api } from './client';
+import { useAuthStore } from '@/stores/authStore';
 import type {
   ApiResponse,
   PageResponse,
@@ -10,7 +11,7 @@ import type {
 } from '@/types';
 
 export const eventsApi = {
-  // ----- Public endpoints -----
+  // ----- Dynamic Feed Endpoints (Auth-Aware) -----
   getEvents: (params: {
     page?: number;
     size?: number;
@@ -20,12 +21,18 @@ export const eventsApi = {
     dateTo?: string;
     location?: string;
     q?: string;
-  }) =>
-    api.get<ApiResponse<PageResponse<Event>>>('/api/events', { params }),
+  }) => {
+    const isAuth = useAuthStore.getState().isAuthenticated;
+    const endpoint = isAuth ? '/api/events' : '/api/public/events';
+    return api.get<ApiResponse<PageResponse<Event>>>(endpoint, { params });
+  },
 
-  getFeaturedEvents: () =>
-    api.get<ApiResponse<PageResponse<Event>>>('/api/public/events/featured'),
+  // ✅ ALWAYS public – backend does NOT have /api/events/featured
+  getFeaturedEvents: () => {
+    return api.get<ApiResponse<PageResponse<Event>>>('/api/public/events/featured');
+  },
 
+  // ----- Event by ID/Slug (Public and Authenticated) -----
   getEventById: (id: string) =>
     api.get<ApiResponse<Event>>(`/api/events/${id}`),
 
@@ -38,7 +45,7 @@ export const eventsApi = {
   getPublicEventBySlug: (slug: string) =>
     api.get<ApiResponse<Event>>(`/api/public/events/slug/${slug}`),
 
-  // ----- Categories -----
+  // ----- Categories (Always Public) -----
   getCategories: () =>
     api.get<ApiResponse<Category[]>>('/api/public/categories'),
 
@@ -71,10 +78,9 @@ export const eventsApi = {
     api.get<ApiResponse<PageResponse<Event>>>('/api/events/my-events', { params }),
 
   // ----- Media -----
+  // ✅ FIXED: Removed explicit 'Content-Type' header – Axios will auto‑set it for FormData
   uploadMedia: (eventId: string, formData: FormData) =>
-    api.post<ApiResponse<Event>>(`/api/events/${eventId}/media`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+    api.post<ApiResponse<Event>>(`/api/events/${eventId}/media`, formData),
 
   deleteMedia: (eventId: string, mediaId: string) =>
     api.delete<ApiResponse<Event>>(`/api/events/${eventId}/media/${mediaId}`),
