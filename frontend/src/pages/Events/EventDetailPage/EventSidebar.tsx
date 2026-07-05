@@ -34,7 +34,7 @@ interface EventSidebarProps {
   event: Event;
   myRsvp?: Rsvp | null;
   isHost: boolean;
-  isAdmin: boolean; // NEW
+  isAdmin: boolean;
   isAuthenticated: boolean;
   isFull: boolean;
   isCancelled: boolean;
@@ -51,12 +51,14 @@ interface EventSidebarProps {
   onEditEvent?: () => void;
   onCancelEvent?: () => void;
   onDeleteEvent?: () => void;
+  onPublishEvent?: () => void;      // ✅ Added
+  isPublishing?: boolean;           // ✅ Added
   // Trash actions
   onRestoreEvent?: () => void;
   onPermanentDeleteEvent?: () => void;
   // Attendee actions
   onAttendeeCheckIn?: () => void;
-  // Admin actions (NEW)
+  // Admin actions
   onApproveEvent?: () => void;
   onRejectEvent?: () => void;
   onFlagEvent?: () => void;
@@ -83,6 +85,8 @@ export function EventSidebar({
   onEditEvent,
   onCancelEvent,
   onDeleteEvent,
+  onPublishEvent,
+  isPublishing,
   onRestoreEvent,
   onPermanentDeleteEvent,
   onAttendeeCheckIn,
@@ -212,8 +216,22 @@ export function EventSidebar({
                     >
                       You are the host of this event.
                     </Alert>
+                    
+                    {/* ✅ NEW: Primary Publish Button for DRAFTS */}
+                    {status === 'DRAFT' && (
+                      <Button
+                        fullWidth
+                        variant="primary"
+                        onClick={onPublishEvent}
+                        isLoading={isPublishing}
+                        leftSection={<IconCheck size={18} />}
+                        className="min-h-[46px] bg-green-600 hover:bg-green-700 text-white border-none shadow-md mb-2"
+                      >
+                        Publish Event
+                      </Button>
+                    )}
 
-                    {!isCancelled && (event.status === 'PUBLISHED' || event.status === 'COMPLETED') && (
+                    {!isCancelled && (status === 'PUBLISHED' || status === 'COMPLETED') && (
                       <Button
                         fullWidth
                         variant="primary"
@@ -221,7 +239,7 @@ export function EventSidebar({
                         leftSection={<IconQrcode size={18} />}
                         className="min-h-[46px] shadow-md hover:shadow-lg transition-all"
                       >
-                        {event.status === 'COMPLETED' ? 'View Attendees' : 'Manage Check-ins (QR)'}
+                        {status === 'COMPLETED' ? 'View Attendees' : 'Manage Check-ins (QR)'}
                       </Button>
                     )}
 
@@ -263,7 +281,7 @@ export function EventSidebar({
 
                     {!isCancelled && !isCompleted && (
                       <Group grow gap="xs">
-                        {event.status === 'PUBLISHED' && !hasStarted && (
+                        {status === 'PUBLISHED' && !hasStarted && (
                           <Button
                             variant="danger"
                             className="bg-red-50 text-red-600 hover:bg-red-100 border-none"
@@ -345,7 +363,6 @@ export function EventSidebar({
             )}
 
             {/* ─── ATTENDEE UI ─── */}
-            {/* Only show for non-host, non-admin (or admin can still register? but we hide for admin) */}
             {!isHost && !isAdmin && !isCancelled && !isCompleted && isAuthenticated && (
               <>
                 {actualStatus === 'ATTENDED' ? (
@@ -408,7 +425,14 @@ export function EventSidebar({
                   </Stack>
                 ) : actualStatus === 'WAITLISTED' ? (
                   <Stack gap="sm">
-                    <Button fullWidth variant="secondary" disabled className="min-h-[46px]">
+                    {/* ✅ FIX: Forced explicit inline styles so Waitlist text is NEVER hidden in dark mode */}
+                    <Button 
+                      fullWidth 
+                      variant="secondary" 
+                      disabled 
+                      className="min-h-[46px]"
+                      style={{ opacity: 1, color: 'var(--app-text)', backgroundColor: 'var(--app-bg)' }}
+                    >
                       You're on the waitlist
                     </Button>
                     {myRsvp && <WaitlistBanner eventId={id} rsvpId={myRsvp.id} />}
@@ -465,7 +489,8 @@ export function EventSidebar({
                   Share
                 </Button>
 
-                {!isHost && isAuthenticated && (
+                {/* ✅ FIX: Hidden if user is an admin */}
+                {!isHost && !isAdmin && isAuthenticated && (
                   <Button
                     variant="ghost"
                     color="gray"

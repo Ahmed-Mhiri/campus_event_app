@@ -98,6 +98,22 @@ export function EventDetailPage() {
   }, [hash, isLoading, event]);
 
   // --- Existing mutations ---
+  
+  // ✅ NEW: Added publish mutation for Draft events
+  const publishMutation = useMutation({
+    mutationFn: (id: string) => eventsApi.publishEvent(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['event', slug] });
+      await queryClient.invalidateQueries({ queryKey: ['my-events'] });
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+      notifications.show({
+        title: 'Event published!',
+        message: 'Your event is now live.',
+        color: 'green',
+      });
+    },
+  });
+
   const cancelMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       eventsApi.cancelEvent(id, reason),
@@ -262,20 +278,18 @@ export function EventDetailPage() {
   };
 
   // ─── Back button logic ──────────────────────────────────────────────
-  // ✅ Fix: Admins go back to the admin events list, not dashboard
   let backRoute: string = ROUTES.EVENTS;
   let backLabel = 'Back to events';
   if (isActuallyHost) {
     backRoute = ROUTES.MY_EVENTS;
     backLabel = 'Back to my events';
   } else if (isAdmin) {
-    backRoute = ROUTES.ADMIN_EVENTS;      // 👈 now points to the admin events table
-    backLabel = 'Back to event list';     // 👈 clearer label
+    backRoute = ROUTES.ADMIN_EVENTS;
+    backLabel = 'Back to event list';
   }
 
   return (
     <PageContainer size="lg">
-      {/* Back button as a plain Link to avoid type errors */}
       <Link
         to={backRoute}
         className="inline-flex items-center gap-1 px-0 mb-4 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 no-underline transition-colors"
@@ -410,13 +424,16 @@ export function EventDetailPage() {
             isCreating={isCreating}
             isCancelling={isCancelling}
             onManageCheckIns={() => navigate(ROUTES.HOST_CHECKIN(id))}
-            onAttendeeCheckIn={() => navigate(ROUTES.ATTENDEE_CHECKIN(id))}
-            onEditEvent={() => navigate(ROUTES.EDIT_EVENT(id))}
             onUploadMedia={() => navigate(ROUTES.EDIT_EVENT(id))}
+            onEditEvent={() => navigate(ROUTES.EDIT_EVENT(id))}
             onCancelEvent={() => setCancelModalOpen(true)}
             onDeleteEvent={() => setDeleteModalOpen(true)}
             onRestoreEvent={() => restoreMutation.mutate(id)}
             onPermanentDeleteEvent={() => setPermanentDeleteModalOpen(true)}
+            // ✅ NEW: Added the publish props
+            onPublishEvent={() => publishMutation.mutate(id)}
+            isPublishing={publishMutation.isPending}
+            onAttendeeCheckIn={() => navigate(ROUTES.ATTENDEE_CHECKIN(id))}
             onApproveEvent={() => adminApproveMutation.mutate(id)}
             onRejectEvent={() => adminRejectMutation.mutate(id)}
             onFlagEvent={() => adminFlagMutation.mutate(id)}

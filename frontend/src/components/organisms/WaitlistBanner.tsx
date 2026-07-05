@@ -1,5 +1,4 @@
-// src/components/molecules/WaitlistBanner/WaitlistBanner.tsx
-import { Paper, Group, Text, Badge, Loader } from '@mantine/core';
+import { Paper, Group, Text, Badge, Loader, ThemeIcon } from '@mantine/core';
 import { IconUserPlus } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { rsvpApi } from '@/api/rsvpApi';
@@ -24,15 +23,33 @@ export function WaitlistBanner({ eventId, rsvpId }: WaitlistBannerProps) {
   if (!rsvpId || position === null || position === undefined) return null;
 
   return (
-    <Paper withBorder p="md" radius="md" bg="yellow.0">
+    <Paper
+      withBorder
+      p="md"
+      radius="md"
+      style={{
+        background: 'var(--app-bg)',
+        color: 'var(--app-text)',
+        borderColor: 'var(--app-border)',
+      }}
+    >
       <Group gap="md">
-        <IconUserPlus size={24} color="var(--mantine-color-yellow-6)" />
+        <ThemeIcon color="yellow" variant="light" size="lg" radius="xl">
+          <IconUserPlus size={20} />
+        </ThemeIcon>
         <div style={{ flex: 1 }}>
-          <Text fw={600}>You're on the waitlist</Text>
-          <Text size="sm">
-            Your position: <Badge color="yellow" size="lg">{position + 1}</Badge>
+          <Text fw={600} style={{ color: 'var(--app-text)' }}>
+            You're on the waitlist
           </Text>
-          <Text size="xs" c="dimmed">
+          <Group gap="xs" mt={2}>
+            <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+              Your position:
+            </Text>
+            <Badge color="yellow" variant="light" size="lg">
+              {position + 1}
+            </Badge>
+          </Group>
+          <Text size="xs" c="dimmed" mt={2}>
             We'll notify you if a spot opens up.
           </Text>
         </div>

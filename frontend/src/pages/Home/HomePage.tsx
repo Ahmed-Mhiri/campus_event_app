@@ -1,11 +1,13 @@
+import { useEffect } from 'react'; // ✅ Added useEffect
 import { SimpleGrid, Stack, Text, Group, Skeleton, Title, ThemeIcon, Button as MantineButton } from '@mantine/core';
 import { IconArrowRight, IconQrcode, IconScan, IconAntennaBars5, IconStar } from '@tabler/icons-react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query'; // ✅ Added useQueryClient
 import { EventCard } from '@/components/molecules/EventCard';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { Section } from '@/components/atoms/Section';
 import { HeroSection } from '@/components/organisms/HeroSection';
-import { useFeaturedEvents, useEvents, useEvent } from '@/hooks/useEvents'; // ✅ Added useEvent
+import { useFeaturedEvents, useEvents, useEvent } from '@/hooks/useEvents';
 import { useCategories } from '@/hooks/useCategories';
 import { useRsvp } from '@/hooks/useRsvp';
 import { useReviews } from '@/hooks/useReviews';
@@ -19,12 +21,22 @@ import { useAuthStore } from '@/stores/authStore';
 import type { Event } from '@/types';
 
 export function HomePage() {
+  const queryClient = useQueryClient(); // ✅ Initialize Query Client
   const { data: featuredData, isLoading: featuredLoading } = useFeaturedEvents();
   const { data: categories, isLoading: categoriesLoading } = useCategories();
   const { data: upcomingData } = useEvents({ sort: 'startTime' });
-  const { useMyRsvps } = useRsvp(); // ✅ Use existing hook with status filter
-  const { data: attendedData } = useMyRsvps('ATTENDED'); // ✅ Get attended events
+  const { useMyRsvps } = useRsvp(); 
+  const { data: attendedData } = useMyRsvps('ATTENDED'); 
   const navigate = useNavigate();
+
+  // ✅ Force fresh data every time the user lands on or returns to the Homepage
+  useEffect(() => {
+    // This clears the cache for these specific items, forcing the banners 
+    // to check the server for your latest Check-In or Review status.
+    queryClient.invalidateQueries({ queryKey: ['events'] });
+    queryClient.invalidateQueries({ queryKey: ['rsvps'] });
+    queryClient.invalidateQueries({ queryKey: ['reviews'] });
+  }, [queryClient]);
 
   const featuredEvents = featuredData?.content ?? [];
   const upcomingEvents = upcomingData?.pages?.[0]?.content ?? [];
@@ -129,7 +141,7 @@ function ReviewBanner({ attendedEvents }: { attendedEvents: any[] }) {
   );
   const latest = sorted[0];
 
-  // ✅ FETCH FULL EVENT DETAILS: needed to check exact endTime
+  // FETCH FULL EVENT DETAILS: needed to check exact endTime
   const { data: eventDetails } = useEvent(latest?.eventId || '', false);
   const { data: reviewsData } = useEventReviews(latest?.eventId || '');
 
@@ -137,7 +149,7 @@ function ReviewBanner({ attendedEvents }: { attendedEvents: any[] }) {
 
   if (!isAuthenticated || !latest) return null;
 
-  // ✅ STRICT TIME CHECK: Has the event actually finished?
+  // STRICT TIME CHECK: Has the event actually finished?
   const isEnded = eventDetails ? new Date(eventDetails.endTime).getTime() <= Date.now() : false;
 
   // Hide banner if event is still loading, hasn't ended yet, or is already reviewed
