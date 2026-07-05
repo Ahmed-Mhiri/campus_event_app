@@ -68,13 +68,20 @@ export function useFeaturedEvents() {
 }
 
 export function useEvent(slugOrId: string, isSlug = true) {
+  const { isAuthenticated } = useAuthStore();
+
   return useQuery({
-    queryKey: ['event', slugOrId],
+    queryKey: ['event', slugOrId, isAuthenticated],
     queryFn: () => {
+      // ✅ Route to authenticated or public endpoints based on auth state
       if (isSlug) {
-        return eventsApi.getEventBySlug(slugOrId).then((res) => res.data.data);
+        return isAuthenticated
+          ? eventsApi.getEventBySlug(slugOrId).then((res) => res.data.data)
+          : eventsApi.getPublicEventBySlug(slugOrId).then((res) => res.data.data);
       }
-      return eventsApi.getEventById(slugOrId).then((res) => res.data.data);
+      return isAuthenticated
+        ? eventsApi.getEventById(slugOrId).then((res) => res.data.data)
+        : eventsApi.getPublicEventById(slugOrId).then((res) => res.data.data);
     },
     staleTime: 1000 * 30,
   });

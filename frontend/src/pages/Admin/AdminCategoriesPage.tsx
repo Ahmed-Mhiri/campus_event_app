@@ -1,5 +1,5 @@
 // src/pages/Admin/AdminCategoriesPage.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Stack,
   Table,
@@ -45,10 +45,19 @@ export function AdminCategoriesPage() {
   const [icon, setIcon] = useState('');
   const [color, setColor] = useState('#8b5cf6');
   const [sortOrder, setSortOrder] = useState<number>(0);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string; usageCount: number } | null>(null);
 
   const { useCategories, createCategory, updateCategory, deleteCategory } = useAdmin();
   const { data: categories, isLoading, refetch } = useCategories();
+
+  // NEW: function to fetch usage count for a category (hypothetical API)
+  // For now, we'll simulate by counting categories in events (not implemented).
+  // In practice, you'd call an API like `/api/categories/{id}/usage`.
+  const fetchUsageCount = async (id: number): Promise<number> => {
+    // Placeholder: return a random number or 0.
+    // Replace with actual API call when available.
+    return 0; // TODO: implement
+  };
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -94,8 +103,15 @@ export function AdminCategoriesPage() {
     }
   };
 
-  const handleDelete = (id: number, name: string) => {
-    setDeleteConfirm({ id, name });
+  const handleDelete = async (id: number, name: string) => {
+    // Fetch usage count before showing confirmation
+    try {
+      const usageCount = await fetchUsageCount(id);
+      setDeleteConfirm({ id, name, usageCount });
+    } catch (err) {
+      // Fallback: show generic message without count
+      setDeleteConfirm({ id, name, usageCount: 0 });
+    }
   };
 
   const confirmDelete = async () => {
@@ -459,13 +475,21 @@ export function AdminCategoriesPage() {
         </Stack>
       </Modal>
 
-      {/* Delete confirmation */}
+      {/* Delete confirmation with usage warning */}
       <ConfirmModal
         opened={!!deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
         onConfirm={confirmDelete}
         title="Delete Category"
-        message={`Are you sure you want to delete the category "${deleteConfirm?.name}"? This may affect events using this category.`}
+        message={
+          deleteConfirm
+            ? `Are you sure you want to delete the category "${deleteConfirm.name}"? ${
+                deleteConfirm.usageCount > 0
+                  ? `It is currently used by ${deleteConfirm.usageCount} event(s). Deleting it will remove the category from those events.`
+                  : 'It is not currently used by any events.'
+              }`
+            : ''
+        }
         confirmLabel="Delete"
         confirmColor="red"
       />

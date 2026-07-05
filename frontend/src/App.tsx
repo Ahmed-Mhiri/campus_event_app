@@ -91,6 +91,8 @@ function AppRoutes() {
           <Route path={ROUTES.ADMIN_USERS} element={<AdminUsersPage />} />
           <Route path={ROUTES.ADMIN_CATEGORIES} element={<AdminCategoriesPage />} />
           <Route path={ROUTES.ADMIN_REPORTS} element={<AdminReportsPage />} />
+          {/* ✅ NEW: Admin view of event details (wrapped in AdminLayout) */}
+          <Route path="/admin/events/detail/:slug" element={<EventDetailPage />} />
         </Route>
       </Route>
 

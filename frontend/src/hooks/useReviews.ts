@@ -15,6 +15,7 @@ export function useReviews() {
         reviewsApi
           .getEventReviews(eventId, { page, size, sort })
           .then((res) => res.data.data),
+      enabled: !!eventId, // ✅ prevents errors when eventId is empty
       staleTime: 1000 * 60,
     });
   };
@@ -42,7 +43,6 @@ export function useReviews() {
       });
       queryClient.invalidateQueries({ queryKey: ['reviews', 'event', variables.eventId] });
       queryClient.invalidateQueries({ queryKey: ['event', variables.eventId] });
-      // Also invalidate host reviews
       queryClient.invalidateQueries({ queryKey: ['reviews', 'host'] });
     },
     onError: (error: any) => {
@@ -71,8 +71,7 @@ export function useReviews() {
   // ----- Toggle helpful -----
   const toggleHelpfulMutation = useMutation({
     mutationFn: (reviewId: string) => reviewsApi.toggleHelpful(reviewId),
-    onSuccess: (response) => {
-      // Optimistic update is handled by the caller
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reviews'] });
     },
     onError: (error: any) => {

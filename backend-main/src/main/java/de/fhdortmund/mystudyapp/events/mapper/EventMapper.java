@@ -40,9 +40,9 @@ public class EventMapper {
                 .map(ec -> CategoryDto.builder()
                         .id(ec.getCategory().getId())
                         .name(ec.getCategory().getName())
-                        .icon(ec.getCategory().getIcon())          // PHASE 2
-                        .color(ec.getCategory().getColor())        // PHASE 2
-                        .sortOrder(ec.getCategory().getSortOrder()) // PHASE 2
+                        .icon(ec.getCategory().getIcon())
+                        .color(ec.getCategory().getColor())
+                        .sortOrder(ec.getCategory().getSortOrder())
                         .build())
                 .collect(Collectors.toSet());
 
@@ -59,7 +59,7 @@ public class EventMapper {
 
         return EventDto.builder()
                 .id(event.getId())
-                .host(hostDto)                              // ← was userMapper.toDto(...)
+                .host(hostDto)
                 .title(event.getTitle())
                 .description(event.getDescription())
                 .location(event.getLocation())
@@ -72,6 +72,7 @@ public class EventMapper {
                 .media(mapMedia(event))
                 .createdAt(event.getCreatedAt())
                 .isHost(isHost)
+                .deleted(event.getDeletedAt() != null) // ✅ ADDED
                 .myRsvpStatus(myRsvp != null ? myRsvp.getStatus() : null)
                 // PHASE 2 ADDITIONS
                 .slug(event.getSlug())
@@ -111,16 +112,16 @@ public class EventMapper {
     private List<EventMediaDto> mapMedia(Event event) {
         if (event.getEventMedia() == null) return Collections.emptyList();
         return event.getEventMedia().stream()
-                .sorted(Comparator.comparing(EventMedia::getDisplayOrder)  // PHASE 2: sort by displayOrder
-                        .thenComparing(EventMedia::getCreatedAt))          // fallback to createdAt
+                .sorted(Comparator.comparing(EventMedia::getDisplayOrder, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(EventMedia::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(m -> EventMediaDto.builder()
                         .id(m.getId())
                         .url(m.getUrl())
                         .mediaType(m.getMediaType())
                         .filename(m.getFilename())
-                        .thumbnailUrl(m.getThumbnailUrl())    // PHASE 2
-                        .mediumUrl(m.getMediumUrl())          // PHASE 2
-                        .displayOrder(m.getDisplayOrder())    // PHASE 2
+                        .thumbnailUrl(m.getThumbnailUrl())
+                        .mediumUrl(m.getMediumUrl())
+                        .displayOrder(m.getDisplayOrder())
                         .build())
                 .collect(Collectors.toList());
     }

@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
+import { useAuthStore } from '@/stores/authStore';
 
 interface SseEventData {
   eventId: string;
@@ -29,7 +30,13 @@ export function useEventSse(eventId: string | undefined) {
         eventSourceRef.current = null;
       }
 
-      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/events/stream/${eventId}`;
+      // ✅ Use accessToken from auth store
+      const token = useAuthStore.getState().accessToken;
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+      
+      // Append the token to the URL so the backend filter can catch it
+      const url = `${baseUrl}/api/events/stream/${eventId}${token ? `?token=${token}` : ''}`;
+      
       const es = new EventSource(url, { withCredentials: true });
 
       es.onopen = () => {
@@ -40,11 +47,8 @@ export function useEventSse(eventId: string | undefined) {
       es.addEventListener('rsvp-update', (e) => {
         try {
           const data: SseEventData = JSON.parse(e.data);
-          // Invalidate event cache to refresh RSVP counts
           queryClient.invalidateQueries({ queryKey: ['event', eventId] });
-          // Also invalidate my-rsvps if needed
           queryClient.invalidateQueries({ queryKey: ['my-rsvps'] });
-          // Show notification if event becomes full or has spots
           if (data.isFull) {
             notifications.show({
               title: 'Event is now full',
@@ -66,9 +70,7 @@ export function useEventSse(eventId: string | undefined) {
       es.addEventListener('waitlist-update', (e) => {
         try {
           const data: SseEventData = JSON.parse(e.data);
-          // Invalidate event cache
           queryClient.invalidateQueries({ queryKey: ['event', eventId] });
-          // If the current user was promoted, show notification
           if (data.type === 'PROMOTED') {
             notifications.show({
               title: 'You were promoted from the waitlist!',
@@ -83,7 +85,6 @@ export function useEventSse(eventId: string | undefined) {
 
       es.addEventListener('event-cancelled', () => {
         try {
-          // Invalidate event cache
           queryClient.invalidateQueries({ queryKey: ['event', eventId] });
           notifications.show({
             title: 'Event Cancelled',
@@ -99,7 +100,6 @@ export function useEventSse(eventId: string | undefined) {
         console.error('SSE error:', err);
         setIsConnected(false);
         es.close();
-        // Reconnect after 5 seconds
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);
         }
@@ -111,7 +111,6 @@ export function useEventSse(eventId: string | undefined) {
 
     connect();
 
-    // Cleanup on unmount or eventId change
     return () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();

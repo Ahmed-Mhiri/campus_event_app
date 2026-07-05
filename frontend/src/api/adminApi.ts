@@ -1,4 +1,4 @@
-// src/api/adminApi.ts
+// frontend/src/api/adminApi.ts
 import { api } from './client';
 import type {
   ApiResponse,
@@ -46,12 +46,14 @@ export const adminApi = {
   getUser: (userId: string) =>
     api.get<ApiResponse<User>>(`/api/admin/users/${userId}`),
 
+  // ✅ FIX: Send trustLevel in the request body (JSON) as per new backend @RequestBody
   updateTrustLevel: (userId: string, trustLevel: string) =>
     api.patch<ApiResponse<void>>(`/api/admin/users/${userId}/trust-level`, { trustLevel }),
 
   flagUser: (userId: string) =>
     api.post<ApiResponse<void>>(`/api/admin/users/${userId}/flag`),
 
+  // promoteUser uses query param 'force' – matches backend @RequestParam
   promoteUser: (userId: string, force = false) =>
     api.post<ApiResponse<void>>(`/api/admin/users/${userId}/promote?force=${force}`),
 

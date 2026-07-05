@@ -16,7 +16,7 @@ import {
   TextInput,
   Modal,
   Menu,
-  Divider,
+  Switch,
 } from '@mantine/core';
 import {
   IconSearch,
@@ -45,10 +45,10 @@ export function AdminUsersPage() {
   const [trustModalOpen, setTrustModalOpen] = useState(false);
   const [newTrustLevel, setNewTrustLevel] = useState('');
 
-  // confirmation states
   const [flagConfirm, setFlagConfirm] = useState<{ userId: string } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ userId: string } | null>(null);
   const [promoteConfirm, setPromoteConfirm] = useState<{ userId: string } | null>(null);
+  const [forcePromote, setForcePromote] = useState(false);
 
   const { useUsers, updateTrustLevel, flagUser, promoteUser, deleteUser } = useAdmin();
 
@@ -62,18 +62,19 @@ export function AdminUsersPage() {
     FLAGGED: 'red',
   };
 
-  const handlePromote = async (userId: string) => {
+  const handlePromote = (userId: string) => {
     setPromoteConfirm({ userId });
+    setForcePromote(false);
   };
 
   const confirmPromote = async () => {
     if (!promoteConfirm) return;
-    await promoteUser({ userId: promoteConfirm.userId, force: false });
+    await promoteUser({ userId: promoteConfirm.userId, force: forcePromote });
     setPromoteConfirm(null);
     await refetch();
   };
 
-  const handleFlag = async (userId: string) => {
+  const handleFlag = (userId: string) => {
     setFlagConfirm({ userId });
   };
 
@@ -84,7 +85,7 @@ export function AdminUsersPage() {
     await refetch();
   };
 
-  const handleDelete = async (userId: string) => {
+  const handleDelete = (userId: string) => {
     setDeleteConfirm({ userId });
   };
 
@@ -373,16 +374,48 @@ export function AdminUsersPage() {
         </Stack>
       </Modal>
 
-      {/* Confirm Promotion */}
-      <ConfirmModal
+      {/* Confirm Promotion - with force switch */}
+      <Modal
         opened={!!promoteConfirm}
         onClose={() => setPromoteConfirm(null)}
-        onConfirm={confirmPromote}
-        title="Promote to Trusted Host"
-        message="Are you sure you want to promote this user to Trusted Host? They will be able to auto-publish events."
-        confirmLabel="Promote"
-        confirmColor="green"
-      />
+        title={
+          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
+            Promote to Trusted Host
+          </Text>
+        }
+        radius="xl"
+        styles={{
+          content: { background: 'var(--app-surface)' },
+          header: { background: 'var(--app-surface)', borderBottom: '1px solid var(--app-border)' },
+        }}
+      >
+        <Stack>
+          <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+            Promotion requires the user to have at least 3 completed events with reviews and an average rating of 4.0 or higher.
+            Use the switch below to force promotion regardless of these requirements.
+          </Text>
+          <Switch
+            label="Force promotion (bypass requirements)"
+            checked={forcePromote}
+            onChange={(e) => setForcePromote(e.currentTarget.checked)}
+            styles={{
+              label: { color: 'var(--app-text)' },
+            }}
+          />
+          <Group justify="flex-end">
+            <Button variant="ghost" onClick={() => setPromoteConfirm(null)} radius="md">
+              Cancel
+            </Button>
+            <Button
+              color="green"
+              onClick={confirmPromote}
+              radius="md"
+            >
+              Promote
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       {/* Confirm Flag */}
       <ConfirmModal

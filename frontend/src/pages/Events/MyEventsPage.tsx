@@ -1,5 +1,6 @@
+// src/pages/Events/MyEventsPage.tsx
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Stack,
   SimpleGrid,
@@ -25,6 +26,7 @@ import {
   IconTrash,
   IconEdit,
   IconCalendarOff,
+  IconQrcode,
 } from '@tabler/icons-react';
 import type { Event } from '@/types';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -44,6 +46,7 @@ const tabs: { key: TabKey; label: string }[] = [
 ];
 
 export function MyEventsPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabKey>('active');
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
@@ -68,36 +71,46 @@ export function MyEventsPage() {
   const events = eventsData?.content ?? [];
 
   const filteredEvents = events.filter((event) => {
+    if (activeTab === 'trash') return event.deleted === true;
+    if (event.deleted === true) return false;
     if (activeTab === 'active') return event.status === 'PUBLISHED' || event.status === 'COMPLETED';
     if (activeTab === 'pending') return event.status === 'UNDER_REVIEW';
     if (activeTab === 'drafts') return event.status === 'DRAFT';
-    if (activeTab === 'trash') return true;
-    return true;
+    return false;
   });
 
+  // --- Mutations (same as before) ---
   const publishMutation = useMutation({
     mutationFn: (id: string) => eventsApi.publishEvent(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-events'] }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['my-events'] });
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
   });
 
   const cancelMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       eventsApi.cancelEvent(id, reason),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-events'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['my-events'] });
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
       setCancelModalOpen(false);
     },
   });
 
   const restoreMutation = useMutation({
     mutationFn: (id: string) => eventsApi.restoreEvent(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-events'] }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['my-events'] });
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
   });
 
   const permanentDeleteMutation = useMutation({
     mutationFn: (id: string) => eventsApi.permanentDelete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-events'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['my-events'] });
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
       setDeleteModalOpen(false);
       setEventToDeleteId(null);
     },
@@ -105,8 +118,9 @@ export function MyEventsPage() {
 
   const softDeleteMutation = useMutation({
     mutationFn: (id: string) => eventsApi.softDeleteEvent(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-events'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['my-events'] });
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
       setMoveToTrashModalOpen(false);
       setEventToTrashId(null);
     },
@@ -124,7 +138,6 @@ export function MyEventsPage() {
   };
 
   const handleRestore = (id: string) => restoreMutation.mutate(id);
-
   const handleMoveToTrash = (id: string) => {
     setEventToTrashId(id);
     setMoveToTrashModalOpen(true);
@@ -145,7 +158,7 @@ export function MyEventsPage() {
 
   const emptyCopy: Record<TabKey, { title: string; description: string }> = {
     active: { title: 'No active events', description: 'Published events you host will show up here.' },
-    pending: { title: 'Nothing under review', description: "Events awaiting approval will appear here." },
+    pending: { title: 'Nothing under review', description: 'Events awaiting approval will appear here.' },
     drafts: { title: 'No drafts yet', description: 'Start creating an event and save it as a draft anytime.' },
     trash: { title: 'Trash is empty', description: 'Events you remove will be kept here until deleted for good.' },
   };
@@ -170,7 +183,6 @@ export function MyEventsPage() {
           }
         />
 
-        {/* Custom tab pills - FIXED: use CSS vars */}
         <Group gap="xs" className="border-b pb-0" style={{ borderColor: 'var(--app-border)' }}>
           {tabs.map(({ key, label }) => {
             const active = activeTab === key;
@@ -221,55 +233,79 @@ export function MyEventsPage() {
               description={emptyCopy[activeTab].description}
               action={
                 activeTab === 'active' || activeTab === 'drafts'
-                  ? { label: 'Create your first event', onClick: () => {} }
+                  ? { label: 'Create your first event', onClick: () => navigate(ROUTES.CREATE_EVENT) }
                   : undefined
               }
             />
           </Paper>
         ) : (
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-            {filteredEvents.map((event) => (
-              <Box key={event.id} pos="relative">
-                <EventCard event={event} />
-                <Menu position="bottom-end" withinPortal shadow="md" radius="md">
-                  <Menu.Target>
-                    <ActionIcon
-                      variant="filled"
-                      color="dark"
-                      size={32}
-                      radius="xl"
-                      className="absolute top-3 right-3 z-10 backdrop-blur-sm"
-                      style={{ background: 'rgba(15, 23, 42, 0.7)' }}
-                      aria-label="Event actions"
-                    >
-                      <IconDots size={16} />
-                    </ActionIcon>
-                  </Menu.Target>
-                  <Menu.Dropdown
-                    style={{
-                      background: 'var(--app-surface)',
-                      borderColor: 'var(--app-border)',
-                    }}
-                  >
-                    {activeTab === 'drafts' && (
-                      <Menu.Item
-                        leftSection={<IconCheck size={14} />}
-                        onClick={() => handlePublish(event.id)}
-                        style={{ color: 'var(--app-text)' }}
+            {filteredEvents.map((event) => {
+              // ✅ TIME-AWARE LOGIC
+              const hasStarted = new Date(event.startTime).getTime() <= Date.now();
+              const isEnded = new Date(event.endTime).getTime() <= Date.now();
+              const isLive = hasStarted && !isEnded && event.status === 'PUBLISHED';
+
+              return (
+                <Box key={event.id} pos="relative">
+                  <EventCard event={event} />
+                  <Menu position="bottom-end" withinPortal shadow="md" radius="md">
+                    <Menu.Target>
+                      <ActionIcon
+                        variant="filled"
+                        color="dark"
+                        size={32}
+                        radius="xl"
+                        className="absolute top-3 right-3 z-10 backdrop-blur-sm"
+                        style={{ background: 'rgba(15, 23, 42, 0.7)' }}
+                        aria-label="Event actions"
                       >
-                        Publish
-                      </Menu.Item>
-                    )}
-                    {activeTab !== 'trash' && (
-                      <>
+                        <IconDots size={16} />
+                      </ActionIcon>
+                    </Menu.Target>
+                    <Menu.Dropdown
+                      style={{
+                        background: 'var(--app-surface)',
+                        borderColor: 'var(--app-border)',
+                      }}
+                    >
+                      {/* Publish: only for Drafts */}
+                      {event.status === 'DRAFT' && !event.deleted && (
+                        <Menu.Item
+                          leftSection={<IconCheck size={14} />}
+                          onClick={() => handlePublish(event.id)}
+                          style={{ color: 'var(--app-text)' }}
+                        >
+                          Publish
+                        </Menu.Item>
+                      )}
+
+                      {/* Check‑in: for PUBLISHED/COMPLETED */}
+                      {!event.deleted && (event.status === 'PUBLISHED' || event.status === 'COMPLETED') && (
                         <Menu.Item
                           component={Link}
-                          to={`/events/edit/${event.id}`}
+                          to={ROUTES.HOST_CHECKIN(event.id)}
+                          leftSection={<IconQrcode size={14} />}
+                          style={{ color: 'var(--app-text)' }}
+                        >
+                          {event.status === 'COMPLETED' ? 'View Attendees' : 'Check-ins & QR'}
+                        </Menu.Item>
+                      )}
+
+                      {/* Edit: only if NOT started and not cancelled/completed */}
+                      {!event.deleted && event.status !== 'CANCELLED' && event.status !== 'COMPLETED' && !hasStarted && (
+                        <Menu.Item
+                          component={Link}
+                          to={ROUTES.EDIT_EVENT(event.id)}
                           leftSection={<IconEdit size={14} />}
                           style={{ color: 'var(--app-text)' }}
                         >
                           Edit
                         </Menu.Item>
+                      )}
+
+                      {/* Cancel: only if PUBLISHED and NOT started */}
+                      {!event.deleted && event.status === 'PUBLISHED' && !hasStarted && (
                         <Menu.Item
                           leftSection={<IconX size={14} />}
                           color="orange"
@@ -277,55 +313,55 @@ export function MyEventsPage() {
                         >
                           Cancel event
                         </Menu.Item>
-                      </>
-                    )}
-                    {activeTab === 'trash' && (
-                      <>
-                        <Menu.Item
-                          leftSection={<IconRestore size={14} />}
-                          onClick={() => handleRestore(event.id)}
-                          style={{ color: 'var(--app-text)' }}
-                        >
-                          Restore
-                        </Menu.Item>
-                        <Menu.Item
-                          leftSection={<IconTrash size={14} />}
-                          color="red"
-                          onClick={() => handlePermanentDelete(event.id)}
-                        >
-                          Delete forever
-                        </Menu.Item>
-                      </>
-                    )}
-                    {activeTab !== 'trash' && (
-                      <>
-                        <Menu.Divider style={{ borderColor: 'var(--app-border)' }} />
-                        <Menu.Item
-                          leftSection={<IconTrash size={14} />}
-                          color="red"
-                          onClick={() => handleMoveToTrash(event.id)}
-                        >
-                          Move to trash
-                        </Menu.Item>
-                      </>
-                    )}
-                  </Menu.Dropdown>
-                </Menu>
-              </Box>
-            ))}
+                      )}
+
+                      {/* Move to trash: never during live */}
+                      {!event.deleted && !isLive && (
+                        <>
+                          <Menu.Divider style={{ borderColor: 'var(--app-border)' }} />
+                          <Menu.Item
+                            leftSection={<IconTrash size={14} />}
+                            color="red"
+                            onClick={() => handleMoveToTrash(event.id)}
+                          >
+                            Move to trash
+                          </Menu.Item>
+                        </>
+                      )}
+
+                      {/* Restore / Delete forever: trashed events */}
+                      {event.deleted && (
+                        <>
+                          <Menu.Item
+                            leftSection={<IconRestore size={14} />}
+                            onClick={() => handleRestore(event.id)}
+                            style={{ color: 'var(--app-text)' }}
+                          >
+                            Restore
+                          </Menu.Item>
+                          <Menu.Item
+                            leftSection={<IconTrash size={14} />}
+                            color="red"
+                            onClick={() => handlePermanentDelete(event.id)}
+                          >
+                            Delete forever
+                          </Menu.Item>
+                        </>
+                      )}
+                    </Menu.Dropdown>
+                  </Menu>
+                </Box>
+              );
+            })}
           </SimpleGrid>
         )}
       </Stack>
 
-      {/* Cancel Event Modal */}
+      {/* Modals – unchanged */}
       <Modal
         opened={cancelModalOpen}
         onClose={() => setCancelModalOpen(false)}
-        title={
-          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
-            Cancel event
-          </Text>
-        }
+        title={<Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>Cancel event</Text>}
         centered
         radius="xl"
         styles={{

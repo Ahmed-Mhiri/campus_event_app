@@ -66,7 +66,10 @@ export function HostCheckInPage() {
     );
   }
 
-  if (!event.isHost && user?.role !== 'ADMIN') {
+  // ✅ Bulletproof host check – compare user id with event host id
+  const isActuallyHost = event.isHost || (user?.id && event.host?.id === user.id) || user?.role === 'ADMIN';
+
+  if (!isActuallyHost) {
     return (
       <PageContainer size="lg">
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>

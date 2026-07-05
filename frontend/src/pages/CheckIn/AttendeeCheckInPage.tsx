@@ -1,6 +1,7 @@
 // src/pages/CheckIn/AttendeeCheckInPage.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Stack,
   Text,
@@ -36,6 +37,7 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 export function AttendeeCheckInPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { selfCheckIn, isCheckingIn } = useRsvp(eventId);
   const { data: event, isLoading: eventLoading } = useEvent(eventId!, false);
 
@@ -115,6 +117,13 @@ export function AttendeeCheckInPage() {
       try {
         await selfCheckIn({ eventId: eventId!, code });
         setSuccess(true);
+
+        // ✅ Invalidate all relevant queries so the event page updates instantly
+        await queryClient.invalidateQueries({ queryKey: ['event'] });
+        await queryClient.invalidateQueries({ queryKey: ['my-events'] });
+        await queryClient.invalidateQueries({ queryKey: ['rsvps'] });
+        await queryClient.invalidateQueries({ queryKey: ['my-rsvps'] });
+
         setTimeout(() => {
           navigate(ROUTES.EVENT_DETAIL(eventId!));
         }, 1500);
@@ -123,7 +132,7 @@ export function AttendeeCheckInPage() {
         setSuccess(false);
       }
     },
-    [eventId, navigate, selfCheckIn]
+    [eventId, navigate, selfCheckIn, queryClient]
   );
 
   const handleManualSubmit = () => {

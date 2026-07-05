@@ -1,5 +1,3 @@
-// src/constants/routes.ts
-
 export const ROUTES = {
   // Public
   HOME: '/',
@@ -18,8 +16,8 @@ export const ROUTES = {
   MY_EVENTS: '/events/my',
 
   // Profile
-  PROFILE: '/profile',                     // current user's own profile
-  USER_PROFILE: (id: string) => `/profile/${id}`, // view other users
+  PROFILE: '/profile',
+  USER_PROFILE: (id: string) => `/profile/${id}`,
   EDIT_PROFILE: '/profile/edit',
   CHANGE_PASSWORD: '/profile/change-password',
   PREFERENCES: '/profile/preferences',
@@ -38,6 +36,8 @@ export const ROUTES = {
   ADMIN_USERS: '/admin/users',
   ADMIN_CATEGORIES: '/admin/categories',
   ADMIN_REPORTS: '/admin/reports',
+  // ✅ NEW: Admin-specific event detail (wrapped in AdminLayout)
+  ADMIN_EVENT_DETAIL: (slug: string) => `/admin/events/detail/${slug}`,
 } as const;
 
 export type RouteParams = {

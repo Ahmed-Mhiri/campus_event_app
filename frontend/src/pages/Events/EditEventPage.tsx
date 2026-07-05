@@ -1,4 +1,3 @@
-// src/pages/Events/EditEventPage.tsx
 import { useParams } from 'react-router-dom';
 import { Stack, Loader, Center, Alert, Paper, Text, ThemeIcon } from '@mantine/core';
 import { IconAlertCircle, IconPhoto } from '@tabler/icons-react';
@@ -9,11 +8,13 @@ import { useEvent } from '@/hooks/useEvents';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ROUTES } from '@/constants/routes';
+import { useAuthStore } from '@/stores/authStore';
 
 export function EditEventPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { data: event, isLoading, error } = useEvent(id!, false);
+  const { user } = useAuthStore();
 
   if (isLoading) {
     return (
@@ -33,7 +34,10 @@ export function EditEventPage() {
     );
   }
 
-  if (!event.isHost) {
+  // ✅ Bulletproof host check – uses the authenticated user's ID
+  const isActuallyHost = event.isHost || (user?.id && event.host?.id === user.id);
+
+  if (!isActuallyHost) {
     return (
       <PageContainer size="md">
         <Alert icon={<IconAlertCircle size={18} />} title="Access denied" color="red" radius="lg">

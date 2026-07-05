@@ -2,7 +2,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { adminApi } from '@/api/adminApi';
-import { reportsApi } from '@/api/reportsApi'; // 👈 new import
+import { reportsApi } from '@/api/reportsApi';
+import { eventsApi } from '@/api/eventsApi';
 import type { BulkEventActionRequest, CategoryRequest } from '@/types';
 
 export function useAdmin() {
@@ -13,8 +14,8 @@ export function useAdmin() {
     return useQuery({
       queryKey: ['admin', 'dashboard'],
       queryFn: () => adminApi.getDashboardStats().then((res) => res.data.data),
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      refetchInterval: 1000 * 60 * 2, // Refresh every 2 minutes
+      staleTime: 1000 * 60 * 5,
+      refetchInterval: 1000 * 60 * 2,
     });
   };
 
@@ -23,9 +24,7 @@ export function useAdmin() {
     return useQuery({
       queryKey: ['admin', 'events', status, page, size],
       queryFn: () =>
-        adminApi
-          .getEvents({ status, page, size })
-          .then((res) => res.data.data),
+        adminApi.getEvents({ status, page, size }).then((res) => res.data.data),
       staleTime: 1000 * 30,
     });
   };
@@ -55,8 +54,9 @@ export function useAdmin() {
     },
   });
 
+  // ✅ FIX: rejectEvent now only calls adminApi.rejectEvent(id) – no reason argument
   const rejectEventMutation = useMutation({
-    mutationFn: (eventId: string) => adminApi.rejectEvent(eventId),
+    mutationFn: ({ id }: { id: string }) => adminApi.rejectEvent(id), // Only ID
     onSuccess: () => {
       notifications.show({
         title: 'Event rejected',
@@ -84,6 +84,24 @@ export function useAdmin() {
     },
     onError: (error: any) => {
       const msg = error?.response?.data?.message || 'Failed to flag event.';
+      notifications.show({ title: 'Error', message: msg, color: 'red' });
+    },
+  });
+
+  // Permanent delete
+  const deleteEventMutation = useMutation({
+    mutationFn: (eventId: string) => eventsApi.permanentDelete(eventId),
+    onSuccess: () => {
+      notifications.show({
+        title: 'Event permanently deleted',
+        message: 'The event has been removed from the system.',
+        color: 'red',
+      });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'events'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.message || 'Failed to delete event.';
       notifications.show({ title: 'Error', message: msg, color: 'red' });
     },
   });
@@ -129,9 +147,7 @@ export function useAdmin() {
     return useQuery({
       queryKey: ['admin', 'users', search, trustLevel, page, size],
       queryFn: () =>
-        adminApi
-          .getUsers({ search, trustLevel, page, size })
-          .then((res) => res.data.data),
+        adminApi.getUsers({ search, trustLevel, page, size }).then((res) => res.data.data),
       staleTime: 1000 * 30,
     });
   };
@@ -263,7 +279,7 @@ export function useAdmin() {
     },
   });
 
-  // ----- Reports (NEW) -----
+  // ----- Reports -----
   const useAdminReports = (params?: {
     status?: string;
     reason?: string;
@@ -310,7 +326,7 @@ export function useAdmin() {
     },
   });
 
-  // ----- Return everything -----
+  // ----- Return -----
   return {
     // Dashboard
     useDashboard,
@@ -319,8 +335,9 @@ export function useAdmin() {
     useAdminEvents,
     usePendingEvents,
     approveEvent: approveEventMutation.mutateAsync,
-    rejectEvent: rejectEventMutation.mutateAsync,
+    rejectEvent: rejectEventMutation.mutateAsync,   // now expects { id } only
     flagEvent: flagEventMutation.mutateAsync,
+    deleteEvent: deleteEventMutation.mutateAsync,
     bulkApprove: bulkApproveMutation.mutateAsync,
     bulkReject: bulkRejectMutation.mutateAsync,
 

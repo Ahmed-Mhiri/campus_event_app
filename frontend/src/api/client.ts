@@ -26,8 +26,8 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Fallback: If background refresh missed a window or app woke up from sleep mode
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // ✅ Catch both 401 (Unauthorized) and 403 (Forbidden) for expired Spring Security tokens
+    if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {

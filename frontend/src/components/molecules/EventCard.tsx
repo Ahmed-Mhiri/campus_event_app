@@ -1,7 +1,8 @@
+// src/components/molecules/EventCard.tsx
 import { Link, useNavigate } from 'react-router-dom';
 import { Image, Text, Group, Badge, Button, Avatar } from '@mantine/core';
 import { motion } from 'framer-motion';
-import { IconCalendar, IconMapPin, IconCrown } from '@tabler/icons-react';
+import { IconCalendar, IconMapPin, IconCrown, IconEdit, IconCheck } from '@tabler/icons-react';
 import { formatDate } from '@/utils/dateFormatter';
 import { getAvatarUrl } from '@/utils/fileHelpers';
 import { ROUTES } from '@/constants/routes';
@@ -18,6 +19,14 @@ interface EventCardProps {
   event: Event;
 }
 
+// ✅ URL helper to prepend the backend URL and correct the port
+const getFullImageUrl = (url?: string | null) => {
+  if (!url) return null;
+  if (url.startsWith('http')) return url;
+  const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8081').replace('8080', '8081');
+  return `${baseUrl}${url}`;
+};
+
 export function EventCard({ event }: EventCardProps) {
   const {
     id,
@@ -25,6 +34,7 @@ export function EventCard({ event }: EventCardProps) {
     title,
     location,
     startTime,
+    endTime,
     host,
     maxCapacity,
     currentRsvpCount,
@@ -36,24 +46,36 @@ export function EventCard({ event }: EventCardProps) {
   } = event;
 
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const { createRsvp, isCreating } = useRsvp(id);
 
-  const coverImage =
-    media?.find((m) => m.mediaType === 'IMAGE' && m.displayOrder === 0)
-      ?.mediumUrl ||
-    media?.find((m) => m.mediaType === 'IMAGE')?.mediumUrl ||
+  const isActuallyHost = isHost || (user?.id === host.id);
+
+  // ✅ TIME-AWARE: check if event is currently live
+  const now = Date.now();
+  const start = new Date(startTime).getTime();
+  const end = new Date(endTime).getTime();
+  const isLive = status === 'PUBLISHED' && start <= now && now < end;
+
+  // ✅ Use .url (original image) instead of .mediumUrl to match detail page behavior
+  const rawCoverImage =
+    media?.find((m) => m.mediaType === 'IMAGE' && m.displayOrder === 0)?.url ||
+    media?.find((m) => m.mediaType === 'IMAGE')?.url ||
     null;
+
+  const coverImage = getFullImageUrl(rawCoverImage);
 
   const isFull = currentRsvpCount >= maxCapacity;
   const isCancelled = status === 'CANCELLED';
   const isCompleted = status === 'COMPLETED';
 
   let rsvpLabel = 'Register';
-  if (isCancelled) rsvpLabel = 'Cancelled';
+  if (isActuallyHost) rsvpLabel = 'Manage Event';
+  else if (isCancelled) rsvpLabel = 'Cancelled';
   else if (isCompleted) rsvpLabel = 'Completed';
   else if (myRsvpStatus === 'GOING') rsvpLabel = 'Going';
   else if (myRsvpStatus === 'WAITLISTED') rsvpLabel = 'Waitlisted';
+  else if (myRsvpStatus === 'ATTENDED') rsvpLabel = 'Checked In';
   else if (isFull) rsvpLabel = 'Join Waitlist';
 
   const avatarSrc = host.profileImageUrl || getAvatarUrl(host.id) || undefined;
@@ -72,7 +94,6 @@ export function EventCard({ event }: EventCardProps) {
         hover
         className="flex flex-col h-full overflow-hidden text-inherit no-underline"
       >
-        {/* Image Section with overlay badges */}
         <div className="relative">
           <Image
             src={coverImage || '/placeholder-event.jpg'}
@@ -82,12 +103,51 @@ export function EventCard({ event }: EventCardProps) {
             className="transition-transform duration-300 group-hover:scale-105"
             radius="md"
           />
+
+          {/* ─── BADGE CONTAINER (top-right) ─── */}
           <div className="absolute top-3 right-3 flex gap-1 flex-wrap justify-end">
+            {/* ✅ Checked In badge – only when user has ATTENDED status */}
+            {myRsvpStatus === 'ATTENDED' && (
+              <Badge
+                color="green"
+                variant="filled"
+                radius="md"
+                className="flex items-center gap-1"
+                leftSection={<IconCheck size={12} />}
+              >
+                Checked In
+              </Badge>
+            )}
+
+            {/* Live badge – appears when event is currently ongoing */}
+            {isLive && !(myRsvpStatus === 'ATTENDED') && (
+              <Badge
+                color="red"
+                variant="filled"
+                radius="md"
+                className="animate-pulse flex items-center gap-1"
+                style={{
+                  boxShadow: '0 0 12px rgba(239, 68, 68, 0.6)',
+                  fontWeight: 600,
+                }}
+                leftSection={<span className="w-2 h-2 bg-white rounded-full" />}
+              >
+                Live
+              </Badge>
+            )}
+
             {isCancelled && <Badge color="red" variant="filled" radius="md">Cancelled</Badge>}
             {isCompleted && <Badge color="gray" variant="filled" radius="md">Completed</Badge>}
-            {status === 'PUBLISHED' && !isFull && <Badge color="green" variant="filled" radius="md">Open</Badge>}
-            {status === 'PUBLISHED' && isFull && <Badge color="orange" variant="filled" radius="md">Full</Badge>}
-            {isHost && (
+
+            {/* Only show Open/Full if not live and not checked in */}
+            {!isLive && myRsvpStatus !== 'ATTENDED' && status === 'PUBLISHED' && !isFull && (
+              <Badge color="green" variant="filled" radius="md">Open</Badge>
+            )}
+            {!isLive && myRsvpStatus !== 'ATTENDED' && status === 'PUBLISHED' && isFull && (
+              <Badge color="orange" variant="filled" radius="md">Full</Badge>
+            )}
+
+            {isActuallyHost && (
               <Badge color="blue" variant="light" leftSection={<IconCrown size={12} />}>
                 Your Event
               </Badge>
@@ -95,7 +155,6 @@ export function EventCard({ event }: EventCardProps) {
           </div>
         </div>
 
-        {/* Content */}
         <div className="flex flex-col flex-1 gap-2 mt-3">
           <Text fw={600} size="xl" lineClamp={2} lh={1.3} className="tracking-tight">
             {title}
@@ -128,7 +187,6 @@ export function EventCard({ event }: EventCardProps) {
 
           <CapacityBar current={currentRsvpCount} max={maxCapacity} />
 
-          {/* ✅ Fixed nested link issue: use div + onClick instead of Link */}
           <Group gap="xs" align="center" className="mt-auto pt-3">
             <div
               onClick={(e) => {
@@ -156,25 +214,30 @@ export function EventCard({ event }: EventCardProps) {
             <UserTrustBadge trustLevel={host.trustLevel} size="xs" showLabel={false} />
           </Group>
 
-          {/* RSVP Button */}
           <Button
             size="sm"
             radius="md"
-            variant={myRsvpStatus === 'GOING' ? 'filled' : 'light'}
-            color={myRsvpStatus === 'GOING' ? 'green' : 'brand'}
+            variant={isActuallyHost ? 'default' : (myRsvpStatus === 'GOING' || myRsvpStatus === 'ATTENDED' ? 'filled' : 'light')}
+            color={isActuallyHost ? 'gray' : (myRsvpStatus === 'GOING' || myRsvpStatus === 'ATTENDED' ? 'green' : 'brand')}
             fullWidth
-            disabled={isCancelled || isCompleted || isHost}
+            disabled={(!isActuallyHost && isCancelled) || (!isActuallyHost && isCompleted)}
             loading={isCreating}
+            leftSection={isActuallyHost ? <IconEdit size={16} /> : undefined}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
+
+              if (isActuallyHost) {
+                navigate(`/events/edit/${id}`);
+                return;
+              }
 
               if (!isAuthenticated) {
                 navigate(ROUTES.LOGIN);
                 return;
               }
 
-              if (myRsvpStatus === 'GOING' || myRsvpStatus === 'WAITLISTED') {
+              if (myRsvpStatus === 'GOING' || myRsvpStatus === 'WAITLISTED' || myRsvpStatus === 'ATTENDED') {
                 navigate(ROUTES.EVENT_DETAIL(slug));
                 return;
               }

@@ -1,6 +1,6 @@
 // src/pages/Events/EventDetailPage/index.tsx
-import { useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   Grid,
   Stack,
@@ -15,7 +15,15 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconArrowLeft, IconAlertCircle } from '@tabler/icons-react';
+import {
+  IconArrowLeft,
+  IconAlertCircle,
+  IconClock,
+  IconEdit,
+  IconTrash,
+  IconAntennaBars5,
+  IconInfoCircle,
+} from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { eventsApi } from '@/api/eventsApi';
 import { ROUTES } from '@/constants/routes';
@@ -25,6 +33,7 @@ import { useEventSse } from '@/hooks/useEventSse';
 import { ReviewSection } from '@/components/organisms/ReviewSection';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Button } from '@/components/ui/Button';
+import { useAdmin } from '@/hooks/useAdmin';
 import { EventHeader } from './EventHeader';
 import { EventMedia } from './EventMedia';
 import { EventSidebar } from './EventSidebar';
@@ -32,17 +41,19 @@ import { EventSidebar } from './EventSidebar';
 export function EventDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
-  const { isAuthenticated } = useAuthStore();
 
-  // ✅ Detect if the URL parameter is a UUID (from search bar) or a text slug (from cards)
+  const { isAuthenticated, user } = useAuthStore();
+  const isAdmin = user?.role === 'ADMIN';
+  const { approveEvent, rejectEvent, flagEvent, deleteEvent } = useAdmin();
+
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug || '');
 
-  const { data: event, isLoading, error } = useQuery({
+  const { data: event, isLoading, error, refetch } = useQuery({
     queryKey: ['event', slug, isAuthenticated],
     queryFn: async () => {
       if (isUuid) {
-        // Fetch by UUID
         if (isAuthenticated) {
           const res = await eventsApi.getEventById(slug!);
           return res.data.data;
@@ -51,7 +62,6 @@ export function EventDetailPage() {
           return res.data.data;
         }
       } else {
-        // Fetch by slug
         if (isAuthenticated) {
           const res = await eventsApi.getEventBySlug(slug!);
           return res.data.data;
@@ -69,29 +79,127 @@ export function EventDetailPage() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [permanentDeleteModalOpen, setPermanentDeleteModalOpen] = useState(false);
   const [cancelRsvpModalOpen, setCancelRsvpModalOpen] = useState(false);
   const [cancelRsvpReason, setCancelRsvpReason] = useState('');
 
   const { createRsvp, cancelRsvp, isCreating, isCancelling, useMyRsvpForEvent } = useRsvp(event?.id);
   const { data: myRsvp } = useMyRsvpForEvent(event?.id || '');
 
+  const isActuallyHost = event?.isHost || (user?.id && event?.host?.id === user.id) || false;
+
+  const hash = location.hash;
+  useEffect(() => {
+    if (hash === '#reviews' && !isLoading && event) {
+      setTimeout(() => {
+        document.getElementById('reviews')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  }, [hash, isLoading, event]);
+
+  // --- Existing mutations ---
   const cancelMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       eventsApi.cancelEvent(id, reason),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['event', slug] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['event', slug] });
+      await queryClient.invalidateQueries({ queryKey: ['my-events'] });
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
       setCancelModalOpen(false);
       setCancelReason('');
+      notifications.show({
+        title: 'Event cancelled',
+        message: 'Attendees have been notified.',
+        color: 'orange',
+      });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => eventsApi.softDeleteEvent(id),
-    onSuccess: () => navigate(ROUTES.MY_EVENTS),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['my-events'] });
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+      await queryClient.invalidateQueries({ queryKey: ['event', slug] });
+      notifications.show({
+        title: 'Moved to trash',
+        message: 'You can restore it later from My Events.',
+        color: 'gray',
+      });
+      navigate(ROUTES.MY_EVENTS);
+    },
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: (id: string) => eventsApi.restoreEvent(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['my-events'] });
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+      await queryClient.invalidateQueries({ queryKey: ['event', slug] });
+      notifications.show({
+        title: 'Event restored',
+        message: 'Your event is back in action.',
+        color: 'green',
+      });
+    },
+  });
+
+  const permanentDeleteMutation = useMutation({
+    mutationFn: (id: string) => eventsApi.permanentDelete(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['my-events'] });
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+      await queryClient.invalidateQueries({ queryKey: ['event', slug] });
+      notifications.show({
+        title: 'Event deleted forever',
+        message: 'The event has been permanently removed.',
+        color: 'gray',
+      });
+      navigate(ROUTES.MY_EVENTS);
+    },
+  });
+
+  // --- Admin mutations ---
+  const adminApproveMutation = useMutation({
+    mutationFn: (id: string) => approveEvent(id),
+    onSuccess: async () => {
+      await refetch();
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+      notifications.show({ title: 'Approved', message: 'Event published.', color: 'green' });
+    },
+  });
+
+  const adminRejectMutation = useMutation({
+    mutationFn: (id: string) => rejectEvent({ id }),
+    onSuccess: async () => {
+      await refetch();
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+      notifications.show({ title: 'Rejected', message: 'Event rejected.', color: 'orange' });
+    },
+  });
+
+  const adminFlagMutation = useMutation({
+    mutationFn: (id: string) => flagEvent(id),
+    onSuccess: async () => {
+      await refetch();
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+      notifications.show({ title: 'Flagged', message: 'Event moved to under review.', color: 'yellow' });
+    },
+  });
+
+  const adminPermanentDeleteMutation = useMutation({
+    mutationFn: (id: string) => deleteEvent(id),
+    onSuccess: async () => {
+      await refetch();
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+      notifications.show({ title: 'Deleted', message: 'Event permanently removed.', color: 'red' });
+      navigate(ROUTES.ADMIN_EVENTS);
+    },
   });
 
   const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href)
+    navigator.clipboard
+      .writeText(window.location.href)
       .then(() => {
         notifications.show({
           title: 'Link copied!',
@@ -134,12 +242,16 @@ export function EventDetailPage() {
     );
   }
 
-  const { id, title, description, host, maxCapacity, currentRsvpCount, status, media } = event;
+  const { id, title, description, host, maxCapacity, currentRsvpCount, status, media, startTime, endTime } = event;
 
   const isCancelled = status === 'CANCELLED';
-  const isCompleted = status === 'COMPLETED';
   const isFull = currentRsvpCount >= maxCapacity;
-  const canReview = isCompleted && myRsvp?.status === 'ATTENDED' && !event.isHost;
+
+  const hasStarted = new Date(startTime).getTime() <= Date.now();
+  const isEnded = new Date(endTime).getTime() <= Date.now();
+  const isLive = hasStarted && !isEnded && status === 'PUBLISHED';
+
+  const canReview = isEnded && myRsvp?.status === 'ATTENDED' && !isActuallyHost;
 
   const handleRsvp = () => createRsvp();
   const handleCancelRsvp = () => {
@@ -149,19 +261,89 @@ export function EventDetailPage() {
     setCancelRsvpReason('');
   };
 
+  // ─── Back button logic ──────────────────────────────────────────────
+  // ✅ Fix: Admins go back to the admin events list, not dashboard
+  let backRoute: string = ROUTES.EVENTS;
+  let backLabel = 'Back to events';
+  if (isActuallyHost) {
+    backRoute = ROUTES.MY_EVENTS;
+    backLabel = 'Back to my events';
+  } else if (isAdmin) {
+    backRoute = ROUTES.ADMIN_EVENTS;      // 👈 now points to the admin events table
+    backLabel = 'Back to event list';     // 👈 clearer label
+  }
+
   return (
     <PageContainer size="lg">
-      <Button
-        component={Link}
-        to={ROUTES.EVENTS}
-        variant="ghost"
-        size="sm"
-        className="px-0 mb-4"
-        aria-label="Back to events"
+      {/* Back button as a plain Link to avoid type errors */}
+      <Link
+        to={backRoute}
+        className="inline-flex items-center gap-1 px-0 mb-4 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 no-underline transition-colors"
       >
         <IconArrowLeft size={16} className="mr-1.5" />
-        Back to events
-      </Button>
+        {backLabel}
+      </Link>
+
+      {isLive && (
+        <Alert
+          icon={<IconAntennaBars5 size={20} className="animate-pulse" />}
+          color="blue"
+          radius="md"
+          mb="xl"
+          title={<Text fw={700} className="text-blue-700 dark:text-blue-300">Live Now</Text>}
+          style={{
+            background: 'rgba(59, 130, 246, 0.1)',
+            borderColor: 'rgba(59, 130, 246, 0.3)',
+            borderWidth: 1,
+          }}
+        >
+          <Text size="sm" className="text-blue-800 dark:text-blue-200">
+            This event is currently taking place. Check-ins are open!
+          </Text>
+        </Alert>
+      )}
+
+      {isActuallyHost && event.deleted && (
+        <Alert
+          icon={<IconTrash size={18} />}
+          color="red"
+          radius="md"
+          mb="xl"
+          title="Event is in the Trash Bin"
+          style={{ background: 'var(--app-surface)', borderColor: 'var(--app-border)' }}
+        >
+          This event is hidden from the public. You can restore it or permanently delete it using
+          your Host Dashboard.
+        </Alert>
+      )}
+
+      {isActuallyHost && !event.deleted && status === 'UNDER_REVIEW' && (
+        <Alert
+          icon={<IconClock size={18} />}
+          color="yellow"
+          radius="md"
+          mb="xl"
+          title="Pending Admin Approval"
+          style={{ background: 'var(--app-surface)', borderColor: 'var(--app-border)' }}
+        >
+          This event is currently under review by the university administration. It will
+          automatically go live once approved.
+        </Alert>
+      )}
+
+      {isActuallyHost && !event.deleted && status === 'DRAFT' && (
+        <Alert
+          icon={<IconEdit size={18} />}
+          color="gray"
+          radius="md"
+          mb="xl"
+          title="Draft Event"
+          style={{ background: 'var(--app-surface)', borderColor: 'var(--app-border)' }}
+        >
+          This event is not published yet. You can continue editing and publish it from your Host
+          Dashboard when ready.
+        </Alert>
+      )}
 
       <Grid gap="xl">
         <Grid.Col span={{ base: 12, md: 8 }}>
@@ -186,13 +368,16 @@ export function EventDetailPage() {
                 >
                   About this event
                 </Text>
-                <Text className="leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--app-text-secondary)' }}>
+                <Text
+                  className="leading-relaxed whitespace-pre-wrap"
+                  style={{ color: 'var(--app-text-secondary)' }}
+                >
                   {description}
                 </Text>
               </Paper>
             )}
 
-            <div>
+            <div id="reviews" className="scroll-mt-24">
               <Title order={2} size="h3" mb="md" style={{ color: 'var(--app-text)' }}>
                 Reviews
               </Title>
@@ -212,30 +397,40 @@ export function EventDetailPage() {
           <EventSidebar
             event={event}
             myRsvp={myRsvp}
-            isHost={event.isHost}
+            isHost={isActuallyHost}
+            isAdmin={isAdmin}
             isAuthenticated={isAuthenticated}
             isFull={isFull}
             isCancelled={isCancelled}
-            isCompleted={isCompleted}
+            isCompleted={isEnded && !isCancelled}
             cancellationReason={event.cancellationReason || undefined}
             onRsvp={handleRsvp}
             onCancelRsvp={() => setCancelRsvpModalOpen(true)}
             onShare={handleShare}
             isCreating={isCreating}
             isCancelling={isCancelling}
+            onManageCheckIns={() => navigate(ROUTES.HOST_CHECKIN(id))}
+            onAttendeeCheckIn={() => navigate(ROUTES.ATTENDEE_CHECKIN(id))}
+            onEditEvent={() => navigate(ROUTES.EDIT_EVENT(id))}
+            onUploadMedia={() => navigate(ROUTES.EDIT_EVENT(id))}
+            onCancelEvent={() => setCancelModalOpen(true)}
+            onDeleteEvent={() => setDeleteModalOpen(true)}
+            onRestoreEvent={() => restoreMutation.mutate(id)}
+            onPermanentDeleteEvent={() => setPermanentDeleteModalOpen(true)}
+            onApproveEvent={() => adminApproveMutation.mutate(id)}
+            onRejectEvent={() => adminRejectMutation.mutate(id)}
+            onFlagEvent={() => adminFlagMutation.mutate(id)}
+            onAdminPermanentDelete={() => adminPermanentDeleteMutation.mutate(id)}
           />
         </Grid.Col>
       </Grid>
 
-      {/* Cancel Event Modal */}
+      {/* ─── MODALS ─── */}
+
       <Modal
         opened={cancelModalOpen}
         onClose={() => setCancelModalOpen(false)}
-        title={
-          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
-            Cancel event
-          </Text>
-        }
+        title={<Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>Cancel event</Text>}
         centered
         radius="xl"
         styles={{
@@ -277,15 +472,10 @@ export function EventDetailPage() {
         </Stack>
       </Modal>
 
-      {/* Delete Event Modal */}
       <Modal
         opened={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}
-        title={
-          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
-            Move to trash
-          </Text>
-        }
+        title={<Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>Move to trash</Text>}
         centered
         radius="xl"
         styles={{
@@ -313,18 +503,45 @@ export function EventDetailPage() {
         </Stack>
       </Modal>
 
-      {/* Cancel RSVP Modal */}
+      <Modal
+        opened={permanentDeleteModalOpen}
+        onClose={() => setPermanentDeleteModalOpen(false)}
+        title={<Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>Delete forever</Text>}
+        centered
+        radius="xl"
+        styles={{
+          content: { background: 'var(--app-surface)' },
+          header: { background: 'var(--app-surface)', borderBottom: '1px solid var(--app-border)' },
+        }}
+      >
+        <Stack>
+          <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+            Are you sure? This action cannot be undone. All photos, RSVPs, and reviews will be
+            permanently wiped.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="ghost" onClick={() => setPermanentDeleteModalOpen(false)} radius="md">
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              isLoading={permanentDeleteMutation.isPending}
+              onClick={() => permanentDeleteMutation.mutate(id)}
+              radius="md"
+            >
+              Delete forever
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
       <Modal
         opened={cancelRsvpModalOpen}
         onClose={() => {
           setCancelRsvpModalOpen(false);
           setCancelRsvpReason('');
         }}
-        title={
-          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
-            Cancel registration
-          </Text>
-        }
+        title={<Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>Cancel registration</Text>}
         centered
         radius="xl"
         styles={{
@@ -354,7 +571,12 @@ export function EventDetailPage() {
             <Button variant="ghost" onClick={() => setCancelRsvpModalOpen(false)} radius="md">
               No, keep my spot
             </Button>
-            <Button variant="danger" isLoading={isCancelling} onClick={handleCancelRsvp} radius="md">
+            <Button
+              variant="danger"
+              isLoading={isCancelling}
+              onClick={handleCancelRsvp}
+              radius="md"
+            >
               Yes, cancel registration
             </Button>
           </Group>

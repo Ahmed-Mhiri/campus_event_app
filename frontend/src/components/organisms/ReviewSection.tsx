@@ -63,6 +63,9 @@ export function ReviewSection({
   const reviews = data?.content || [];
   const totalPages = data?.totalPages || 0;
 
+  // ✅ Check if the current user has already reviewed this event
+  const hasReviewed = reviews.some((r: Review) => r.reviewer.id === user?.id);
+
   const handleSubmitReview = async () => {
     if (rating === 0) {
       notifications.show({
@@ -150,8 +153,8 @@ export function ReviewSection({
         />
       </Group>
 
-      {/* Review Form */}
-      {canReview && user && (
+      {/* ✅ Review Form – hidden if user already reviewed */}
+      {canReview && user && !hasReviewed && (
         <Paper
           withBorder
           p="md"

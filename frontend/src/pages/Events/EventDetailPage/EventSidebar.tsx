@@ -1,5 +1,6 @@
+// src/pages/Events/EventDetailPage/EventSidebar.tsx
 import { useState } from 'react';
-import { Stack, Paper, Group, ThemeIcon, Text, Divider, Alert, Badge, Avatar } from '@mantine/core';
+import { Stack, Paper, Group, ThemeIcon, Text, Divider, Alert, Badge, Avatar, Tooltip } from '@mantine/core';
 import {
   IconCalendar,
   IconMapPin,
@@ -10,6 +11,13 @@ import {
   IconFlag,
   IconPhotoPlus,
   IconEdit,
+  IconTrash,
+  IconRestore,
+  IconTrashX,
+  IconQrcode,
+  IconLock,
+  IconCheck,
+  IconShield,
 } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
 import { formatDate } from '@/utils/dateFormatter';
@@ -26,6 +34,7 @@ interface EventSidebarProps {
   event: Event;
   myRsvp?: Rsvp | null;
   isHost: boolean;
+  isAdmin: boolean; // NEW
   isAuthenticated: boolean;
   isFull: boolean;
   isCancelled: boolean;
@@ -36,17 +45,29 @@ interface EventSidebarProps {
   onShare: () => void;
   isCreating: boolean;
   isCancelling: boolean;
-  // New host-specific handlers
+  // Host actions
+  onManageCheckIns?: () => void;
   onUploadMedia?: () => void;
   onEditEvent?: () => void;
   onCancelEvent?: () => void;
   onDeleteEvent?: () => void;
+  // Trash actions
+  onRestoreEvent?: () => void;
+  onPermanentDeleteEvent?: () => void;
+  // Attendee actions
+  onAttendeeCheckIn?: () => void;
+  // Admin actions (NEW)
+  onApproveEvent?: () => void;
+  onRejectEvent?: () => void;
+  onFlagEvent?: () => void;
+  onAdminPermanentDelete?: () => void;
 }
 
 export function EventSidebar({
   event,
   myRsvp,
   isHost,
+  isAdmin,
   isAuthenticated,
   isFull,
   isCancelled,
@@ -57,15 +78,28 @@ export function EventSidebar({
   onShare,
   isCreating,
   isCancelling,
+  onManageCheckIns,
   onUploadMedia,
   onEditEvent,
   onCancelEvent,
   onDeleteEvent,
+  onRestoreEvent,
+  onPermanentDeleteEvent,
+  onAttendeeCheckIn,
+  onApproveEvent,
+  onRejectEvent,
+  onFlagEvent,
+  onAdminPermanentDelete,
 }: EventSidebarProps) {
   const [reportModalOpen, setReportModalOpen] = useState(false);
-  const { id, title, location, startTime, endTime, maxCapacity, currentRsvpCount, myRsvpStatus, host } = event;
+  const { id, title, location, startTime, endTime, maxCapacity, currentRsvpCount, myRsvpStatus, host, status } = event;
 
   const actualStatus = myRsvp?.status || myRsvpStatus;
+  const isShareable = !event.deleted && event.status !== 'DRAFT' && event.status !== 'UNDER_REVIEW';
+  
+  const hasStarted = new Date(startTime).getTime() <= Date.now();
+  const isEnded = new Date(endTime).getTime() <= Date.now();
+  const isLive = hasStarted && !isEnded && event.status === 'PUBLISHED';
 
   return (
     <div className="lg:sticky lg:top-24">
@@ -132,57 +166,246 @@ export function EventSidebar({
             {/* ─── HOST DASHBOARD ─── */}
             {isHost ? (
               <Stack gap="sm">
-                <Alert icon={<IconCrown size={16} />} color="brand" radius="lg" variant="light" title="Host Dashboard">
-                  You are the host of this event.
-                </Alert>
-
-                <Button
-                  fullWidth
-                  variant="primary"
-                  onClick={onUploadMedia}
-                  leftSection={<IconPhotoPlus size={18} />}
-                  className="min-h-[46px]"
-                >
-                  Manage Photos & Videos
-                </Button>
-
-                <Button
-                  fullWidth
-                  variant="secondary"
-                  onClick={onEditEvent}
-                  leftSection={<IconEdit size={18} />}
-                  className="min-h-[46px]"
-                >
-                  Edit Event Details
-                </Button>
-
-                {!isCancelled && !isCompleted && (
-                  <Group grow gap="xs">
-                    <Button
-                      variant="danger"
-                      className="bg-red-50 text-red-600 hover:bg-red-100 border-none"
-                      onClick={onCancelEvent}
+                {event.deleted ? (
+                  // Trash view
+                  <>
+                    <Alert
+                      icon={<IconTrash size={16} />}
+                      color="red"
+                      radius="lg"
+                      variant="light"
+                      title="Event in Trash"
                     >
-                      Cancel Event
+                      This event is currently in your trash bin. Attendees cannot see it.
+                    </Alert>
+
+                    <Button
+                      fullWidth
+                      variant="primary"
+                      onClick={onRestoreEvent}
+                      leftSection={<IconRestore size={18} />}
+                      className="min-h-[46px]"
+                    >
+                      Restore Event
                     </Button>
-                    <Button variant="ghost" color="red" onClick={onDeleteEvent}>
-                      Delete
+
+                    <Button
+                      fullWidth
+                      variant="ghost"
+                      color="red"
+                      onClick={onPermanentDeleteEvent}
+                      leftSection={<IconTrashX size={18} />}
+                      className="min-h-[46px]"
+                    >
+                      Delete Forever
                     </Button>
-                  </Group>
+                  </>
+                ) : (
+                  // Live host controls
+                  <>
+                    <Alert
+                      icon={<IconCrown size={16} />}
+                      color="brand"
+                      radius="lg"
+                      variant="light"
+                      title="Host Dashboard"
+                    >
+                      You are the host of this event.
+                    </Alert>
+
+                    {!isCancelled && (event.status === 'PUBLISHED' || event.status === 'COMPLETED') && (
+                      <Button
+                        fullWidth
+                        variant="primary"
+                        onClick={onManageCheckIns}
+                        leftSection={<IconQrcode size={18} />}
+                        className="min-h-[46px] shadow-md hover:shadow-lg transition-all"
+                      >
+                        {event.status === 'COMPLETED' ? 'View Attendees' : 'Manage Check-ins (QR)'}
+                      </Button>
+                    )}
+
+                    <Button
+                      fullWidth
+                      variant="secondary"
+                      onClick={onUploadMedia}
+                      leftSection={<IconPhotoPlus size={18} />}
+                      className="min-h-[46px]"
+                    >
+                      Manage Photos & Videos
+                    </Button>
+
+                    {!hasStarted ? (
+                      <Button
+                        fullWidth
+                        variant="secondary"
+                        onClick={onEditEvent}
+                        leftSection={<IconEdit size={18} />}
+                        className="min-h-[46px]"
+                      >
+                        Edit Event Details
+                      </Button>
+                    ) : (
+                      <Tooltip label="You cannot edit details of an event that has already started.">
+                        <div>
+                          <Button
+                            fullWidth
+                            variant="secondary"
+                            disabled
+                            leftSection={<IconLock size={18} />}
+                            className="min-h-[46px]"
+                          >
+                            Editing Locked
+                          </Button>
+                        </div>
+                      </Tooltip>
+                    )}
+
+                    {!isCancelled && !isCompleted && (
+                      <Group grow gap="xs">
+                        {event.status === 'PUBLISHED' && !hasStarted && (
+                          <Button
+                            variant="danger"
+                            className="bg-red-50 text-red-600 hover:bg-red-100 border-none"
+                            onClick={onCancelEvent}
+                          >
+                            Cancel Event
+                          </Button>
+                        )}
+                        {!isLive && (
+                          <Button variant="ghost" color="red" onClick={onDeleteEvent}>
+                            Move to Trash
+                          </Button>
+                        )}
+                      </Group>
+                    )}
+                  </>
                 )}
               </Stack>
-            ) : !isCancelled && !isCompleted && isAuthenticated ? (
-              <>
-                {actualStatus === 'GOING' ? (
+            ) : null}
+
+            {/* ─── ADMIN CONTROLS ─── */}
+            {isAdmin && !isHost && (
+              <Stack gap="sm">
+                <Alert
+                  icon={<IconShield size={16} />}
+                  color="blue"
+                  radius="lg"
+                  variant="light"
+                  title="Admin View"
+                >
+                  You are viewing this event as an administrator.
+                </Alert>
+
+                {event.deleted ? (
                   <Button
                     fullWidth
                     variant="danger"
-                    onClick={onCancelRsvp}
-                    isLoading={isCancelling}
-                    className="min-h-[46px]"
+                    onClick={onAdminPermanentDelete}
+                    leftSection={<IconTrashX size={18} />}
                   >
-                    Cancel registration
+                    Permanently Delete
                   </Button>
+                ) : (
+                  <>
+                    {status === 'UNDER_REVIEW' && (
+                      <Group grow>
+                        <Button variant="primary" onClick={onApproveEvent}>
+                          Approve
+                        </Button>
+                        <Button variant="danger" onClick={onRejectEvent}>
+                          Reject
+                        </Button>
+                      </Group>
+                    )}
+
+                    {(status === 'PUBLISHED' || status === 'COMPLETED') && (
+                      <Button
+                        variant="secondary"
+                        color="orange"
+                        onClick={onFlagEvent}
+                        leftSection={<IconFlag size={18} />}
+                      >
+                        Flag Event (Move to Review)
+                      </Button>
+                    )}
+
+                    {status !== 'DRAFT' && status !== 'UNDER_REVIEW' && (
+                      <Button
+                        variant="danger"
+                        onClick={onAdminPermanentDelete}
+                        leftSection={<IconTrashX size={18} />}
+                      >
+                        Permanently Delete
+                      </Button>
+                    )}
+                  </>
+                )}
+              </Stack>
+            )}
+
+            {/* ─── ATTENDEE UI ─── */}
+            {/* Only show for non-host, non-admin (or admin can still register? but we hide for admin) */}
+            {!isHost && !isAdmin && !isCancelled && !isCompleted && isAuthenticated && (
+              <>
+                {actualStatus === 'ATTENDED' ? (
+                  <Alert
+                    icon={<IconCheck size={20} />}
+                    color="green"
+                    radius="lg"
+                    variant="light"
+                    style={{
+                      background: 'rgba(34, 197, 94, 0.12)',
+                      borderColor: 'rgba(34, 197, 94, 0.3)',
+                      borderWidth: 1,
+                    }}
+                  >
+                    <Text fw={700} className="text-green-800 dark:text-green-300">
+                      Checked In!
+                    </Text>
+                    <Text size="sm" className="text-green-700 dark:text-green-400 mt-0.5">
+                      You have successfully checked in to this event.
+                    </Text>
+                  </Alert>
+                ) : actualStatus === 'GOING' ? (
+                  <Stack gap="sm">
+                    {isLive && onAttendeeCheckIn ? (
+                      <Button
+                        fullWidth
+                        variant="primary"
+                        onClick={onAttendeeCheckIn}
+                        leftSection={<IconQrcode size={18} />}
+                        className="min-h-[46px] bg-green-600 hover:bg-green-700 text-white border-none shadow-md"
+                      >
+                        Check In Now
+                      </Button>
+                    ) : null}
+                    {hasStarted ? (
+                      <Tooltip label="You cannot cancel your registration after the event has started.">
+                        <div>
+                          <Button
+                            fullWidth
+                            variant="secondary"
+                            disabled
+                            className="min-h-[46px]"
+                            leftSection={<IconLock size={16} />}
+                          >
+                            Registration Locked
+                          </Button>
+                        </div>
+                      </Tooltip>
+                    ) : (
+                      <Button
+                        fullWidth
+                        variant="danger"
+                        onClick={onCancelRsvp}
+                        isLoading={isCancelling}
+                        className="min-h-[46px]"
+                      >
+                        Cancel registration
+                      </Button>
+                    )}
+                  </Stack>
                 ) : actualStatus === 'WAITLISTED' ? (
                   <Stack gap="sm">
                     <Button fullWidth variant="secondary" disabled className="min-h-[46px]">
@@ -191,18 +414,22 @@ export function EventSidebar({
                     {myRsvp && <WaitlistBanner eventId={id} rsvpId={myRsvp.id} />}
                   </Stack>
                 ) : (
-                  <Button
-                    fullWidth
-                    variant="primary"
-                    onClick={onRsvp}
-                    isLoading={isCreating}
-                    className="min-h-[46px]"
-                  >
-                    {isFull ? 'Join waitlist' : 'Register now'}
-                  </Button>
+                  !hasStarted && (
+                    <Button
+                      fullWidth
+                      variant="primary"
+                      onClick={onRsvp}
+                      isLoading={isCreating}
+                      className="min-h-[46px]"
+                    >
+                      {isFull ? 'Join waitlist' : 'Register now'}
+                    </Button>
+                  )
                 )}
               </>
-            ) : !isAuthenticated ? (
+            )}
+
+            {!isHost && !isAdmin && !isAuthenticated && !isCancelled && !isCompleted && !hasStarted && (
               <Button
                 fullWidth
                 component={Link}
@@ -212,7 +439,7 @@ export function EventSidebar({
               >
                 Log in to register
               </Button>
-            ) : null}
+            )}
 
             {isCancelled && cancellationReason && (
               <Alert icon={<IconInfoCircle size={16} />} color="red" radius="lg" title="Event cancelled">
@@ -226,28 +453,31 @@ export function EventSidebar({
               </Alert>
             )}
 
-            <Group grow gap="xs">
-              <Button
-                variant="ghost"
-                leftSection={<IconShare size={16} />}
-                onClick={onShare}
-                className="min-h-[44px]"
-              >
-                Share
-              </Button>
-
-              {!isHost && isAuthenticated && (
+            {/* ─── SHARE & REPORT ─── */}
+            {isShareable && (
+              <Group grow gap="xs">
                 <Button
                   variant="ghost"
-                  color="gray"
-                  leftSection={<IconFlag size={16} />}
-                  onClick={() => setReportModalOpen(true)}
+                  leftSection={<IconShare size={16} />}
+                  onClick={onShare}
                   className="min-h-[44px]"
                 >
-                  Report
+                  Share
                 </Button>
-              )}
-            </Group>
+
+                {!isHost && isAuthenticated && (
+                  <Button
+                    variant="ghost"
+                    color="gray"
+                    leftSection={<IconFlag size={16} />}
+                    onClick={() => setReportModalOpen(true)}
+                    className="min-h-[44px]"
+                  >
+                    Report
+                  </Button>
+                )}
+              </Group>
+            )}
           </Stack>
         </Paper>
 

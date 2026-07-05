@@ -1,4 +1,3 @@
-// src/pages/Admin/AdminDashboardPage.tsx
 import { Link } from 'react-router-dom';
 import {
   Stack,
@@ -12,7 +11,10 @@ import {
   ActionIcon,
   ThemeIcon,
   Divider,
+  Modal,
+  Textarea,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import {
   IconUsers,
   IconCalendar,
@@ -23,6 +25,7 @@ import {
   IconX,
   IconArrowRight,
   IconShield,
+  IconTrashX, // ✅ NEW
 } from '@tabler/icons-react';
 import { motion } from 'framer-motion';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -33,11 +36,71 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button as UIButton } from '@/components/ui/Button';
 import { EmptyState } from '@/components/atoms/EmptyState';
+import { ConfirmModal } from '@/components/ui/ConfirmModal'; // ✅ NEW
 import { slideUp, staggerContainer } from '@/design-system/animations';
+import { useState } from 'react';
 
 export function AdminDashboardPage() {
-  const { useDashboard } = useAdmin();
-  const { data: stats, isLoading, error } = useDashboard();
+  const { useDashboard, approveEvent, rejectEvent, deleteEvent } = useAdmin(); // ✅ added deleteEvent
+  const { data: stats, isLoading, error, refetch } = useDashboard();
+
+  // Rejection modal
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [pendingRejectId, setPendingRejectId] = useState<string | null>(null);
+
+  // ✅ NEW: Delete confirmation
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
+  const handleApprove = async (id: string) => {
+    try {
+      await approveEvent(id);
+      notifications.show({ title: 'Approved', message: 'Event has been published.', color: 'green' });
+      await refetch();
+    } catch (err) {
+      notifications.show({ title: 'Error', message: 'Failed to approve event.', color: 'red' });
+    }
+  };
+
+  const handleReject = (id: string) => {
+    setPendingRejectId(id);
+    setRejectReason('');
+    setRejectModalOpen(true);
+  };
+
+  const confirmReject = async () => {
+    if (!pendingRejectId) return;
+    try {
+      await rejectEvent({ id: pendingRejectId });
+      notifications.show({ title: 'Rejected', message: 'Event has been rejected.', color: 'orange' });
+      setRejectModalOpen(false);
+      setRejectReason('');
+      setPendingRejectId(null);
+      await refetch();
+    } catch (err) {
+      notifications.show({ title: 'Error', message: 'Failed to reject event.', color: 'red' });
+    }
+  };
+
+  // ✅ NEW: Delete handler
+  const handleDelete = (id: string) => {
+    setPendingDeleteId(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDeleteId) return;
+    try {
+      await deleteEvent(pendingDeleteId);
+      notifications.show({ title: 'Deleted', message: 'Event permanently removed.', color: 'red' });
+      setDeleteConfirmOpen(false);
+      setPendingDeleteId(null);
+      await refetch();
+    } catch (err) {
+      notifications.show({ title: 'Error', message: 'Failed to delete event.', color: 'red' });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -136,7 +199,6 @@ export function AdminDashboardPage() {
           animate="visible"
           variants={staggerContainer}
         >
-          {/* Stat Cards */}
           <motion.div variants={slideUp}>
             <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg">
               {statCards.map((card) => (
@@ -148,7 +210,6 @@ export function AdminDashboardPage() {
                   to={card.link}
                   className="no-underline group relative overflow-hidden"
                 >
-                  {/* Subtle gradient background */}
                   <div
                     className={`absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-0 group-hover:opacity-100 transition-opacity`}
                   />
@@ -290,8 +351,7 @@ export function AdminDashboardPage() {
                                 size="sm"
                                 color="green"
                                 variant="subtle"
-                                component={Link}
-                                to={`/admin/events?approve=${event.id}`}
+                                onClick={() => handleApprove(event.id)}
                                 aria-label="Approve event"
                               >
                                 <IconCheck size={16} />
@@ -300,19 +360,30 @@ export function AdminDashboardPage() {
                                 size="sm"
                                 color="red"
                                 variant="subtle"
-                                component={Link}
-                                to={`/admin/events?reject=${event.id}`}
+                                onClick={() => handleReject(event.id)}
                                 aria-label="Reject event"
                               >
                                 <IconX size={16} />
                               </ActionIcon>
+                              {/* ✅ NEW: Delete Permanently */}
+                              <ActionIcon
+                                size="sm"
+                                color="red"
+                                variant="subtle"
+                                onClick={() => handleDelete(event.id)}
+                                aria-label="Permanently delete event"
+                                title="Delete Forever"
+                              >
+                                <IconTrashX size={16} />
+                              </ActionIcon>
+                              {/* ✅ UPDATED: Admin view link */}
                               <ActionIcon
                                 size="sm"
                                 color="blue"
                                 variant="subtle"
                                 component={Link}
-                                to={ROUTES.EVENT_DETAIL(event.slug || event.id)}
-                                aria-label="View event"
+                                to={ROUTES.ADMIN_EVENT_DETAIL(event.slug || event.id)}
+                                aria-label="View event in admin mode"
                               >
                                 <IconEye size={16} />
                               </ActionIcon>
@@ -439,6 +510,65 @@ export function AdminDashboardPage() {
           </motion.div>
         </motion.div>
       </Stack>
+
+      {/* Reject Modal */}
+      <Modal
+        opened={rejectModalOpen}
+        onClose={() => {
+          setRejectModalOpen(false);
+          setRejectReason('');
+          setPendingRejectId(null);
+        }}
+        title={
+          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
+            Reject Event
+          </Text>
+        }
+        radius="xl"
+        styles={{
+          content: { background: 'var(--app-surface)' },
+          header: { background: 'var(--app-surface)', borderBottom: '1px solid var(--app-border)' },
+        }}
+      >
+        <Stack>
+          <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+            Please provide a reason for rejecting this event. The host will be notified.
+          </Text>
+          <Textarea
+            label="Reason"
+            placeholder="Why is this event being rejected?"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.currentTarget.value)}
+            maxLength={500}
+            minRows={3}
+            required
+            radius="md"
+            styles={{
+              label: { color: 'var(--app-text)' },
+              input: { background: 'var(--app-bg)', color: 'var(--app-text)' },
+            }}
+          />
+          <Group justify="flex-end">
+            <UIButton variant="ghost" onClick={() => setRejectModalOpen(false)} radius="md">
+              Cancel
+            </UIButton>
+            <UIButton variant="danger" onClick={confirmReject} radius="md">
+              Reject Event
+            </UIButton>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* ✅ NEW: Delete Confirmation Modal */}
+      <ConfirmModal
+        opened={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Event Permanently"
+        message="Are you sure you want to permanently delete this event? This action cannot be undone. All associated data (RSVPs, reviews, media) will be removed."
+        confirmLabel="Delete Forever"
+        confirmColor="red"
+      />
     </PageContainer>
   );
 }

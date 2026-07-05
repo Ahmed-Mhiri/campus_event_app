@@ -1,4 +1,3 @@
-// src/pages/Admin/AdminEventsPage.tsx
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -23,6 +22,7 @@ import {
   IconFlag,
   IconEye,
   IconCalendarOff,
+  IconTrashX, // ✅ NEW
 } from '@tabler/icons-react';
 import { motion } from 'framer-motion';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -34,6 +34,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/atoms/EmptyState';
 import { slideUp, staggerContainer } from '@/design-system/animations';
 import type { Event } from '@/types';
+import { ROUTES } from '@/constants/routes';
 
 export function AdminEventsPage() {
   const [page, setPage] = useState(0);
@@ -44,6 +45,11 @@ export function AdminEventsPage() {
   const [pendingRejectId, setPendingRejectId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [bulkConfirmModal, setBulkConfirmModal] = useState<{ type: 'approve' | 'reject'; count: number } | null>(null);
+  const [bulkRejectReason, setBulkRejectReason] = useState('');
+
+  // ✅ NEW: Delete confirmation
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const {
     useAdminEvents,
@@ -52,6 +58,7 @@ export function AdminEventsPage() {
     flagEvent,
     bulkApprove,
     bulkReject,
+    deleteEvent, // ✅ added
   } = useAdmin();
 
   const { data, isLoading, refetch } = useAdminEvents(
@@ -87,8 +94,12 @@ export function AdminEventsPage() {
   };
 
   const handleApprove = async (id: string) => {
-    await approveEvent(id);
-    await refetch();
+    try {
+      await approveEvent(id);
+      await refetch();
+    } catch (err) {
+      // handled by hook
+    }
   };
 
   const handleReject = (id: string) => {
@@ -99,40 +110,74 @@ export function AdminEventsPage() {
 
   const confirmReject = async () => {
     if (!pendingRejectId) return;
-    await rejectEvent(pendingRejectId);
-    setRejectModalOpen(false);
-    setRejectReason('');
-    setPendingRejectId(null);
-    await refetch();
+    try {
+      await rejectEvent({ id: pendingRejectId });
+      setRejectModalOpen(false);
+      setRejectReason('');
+      setPendingRejectId(null);
+      await refetch();
+    } catch (err) {
+      // handled by hook
+    }
   };
 
   const handleFlag = async (id: string) => {
-    await flagEvent(id);
-    await refetch();
+    try {
+      await flagEvent(id);
+      await refetch();
+    } catch (err) {
+      // handled by hook
+    }
+  };
+
+  // ✅ NEW: Delete handler
+  const handleDelete = (id: string) => {
+    setPendingDeleteId(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDeleteId) return;
+    try {
+      await deleteEvent(pendingDeleteId);
+      setDeleteConfirmOpen(false);
+      setPendingDeleteId(null);
+      await refetch();
+    } catch (err) {
+      // handled by hook
+    }
   };
 
   const handleBulkApprove = () => {
     if (selectedEvents.size === 0) return;
     setBulkConfirmModal({ type: 'approve', count: selectedEvents.size });
+    setBulkRejectReason('');
   };
 
   const handleBulkReject = () => {
     if (selectedEvents.size === 0) return;
     setBulkConfirmModal({ type: 'reject', count: selectedEvents.size });
+    setBulkRejectReason('');
   };
 
   const confirmBulkAction = async () => {
     if (!bulkConfirmModal) return;
     setActionLoading(true);
-    if (bulkConfirmModal.type === 'approve') {
-      await bulkApprove({ eventIds: Array.from(selectedEvents) });
-    } else {
-      await bulkReject({ eventIds: Array.from(selectedEvents) });
+    try {
+      if (bulkConfirmModal.type === 'approve') {
+        await bulkApprove({ eventIds: Array.from(selectedEvents) });
+      } else {
+        await bulkReject({ eventIds: Array.from(selectedEvents), reason: bulkRejectReason || undefined });
+      }
+      setSelectedEvents(new Set());
+      setBulkConfirmModal(null);
+      setBulkRejectReason('');
+      await refetch();
+    } catch (err) {
+      // handled by hook
+    } finally {
+      setActionLoading(false);
     }
-    setSelectedEvents(new Set());
-    setBulkConfirmModal(null);
-    setActionLoading(false);
-    await refetch();
   };
 
   const statusOptions = [
@@ -260,82 +305,106 @@ export function AdminEventsPage() {
                         </Table.Tr>
                       </Table.Thead>
                       <Table.Tbody>
-                        {events.map((event: Event) => (
-                          <Table.Tr
-                            key={event.id}
-                            className="transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/50"
-                          >
-                            <Table.Td>
-                              <Checkbox
-                                checked={selectedEvents.has(event.id)}
-                                onChange={() => handleSelect(event.id)}
-                                aria-label={`Select ${event.title}`}
-                              />
-                            </Table.Td>
-                            <Table.Td>
-                              <Text size="sm" fw={500} lineClamp={1} style={{ color: 'var(--app-text)' }}>
-                                {event.title}
-                              </Text>
-                            </Table.Td>
-                            <Table.Td>
-                              <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
-                                {event.host.displayName}
-                              </Text>
-                            </Table.Td>
-                            <Table.Td>
-                              <Badge color={statusColors[event.status] || 'gray'} radius="md">
-                                {event.status}
-                              </Badge>
-                            </Table.Td>
-                            <Table.Td>
-                              <Text size="sm" style={{ color: 'var(--app-text-muted)' }}>
-                                {formatDate(event.createdAt)}
-                              </Text>
-                            </Table.Td>
-                            <Table.Td>
-                              <Group gap={4} wrap="nowrap">
-                                <ActionIcon
-                                  size="sm"
-                                  color="green"
-                                  variant="subtle"
-                                  onClick={() => handleApprove(event.id)}
-                                  disabled={event.status === 'PUBLISHED'}
-                                  aria-label="Approve event"
-                                >
-                                  <IconCheck size={16} />
-                                </ActionIcon>
-                                <ActionIcon
-                                  size="sm"
-                                  color="red"
-                                  variant="subtle"
-                                  onClick={() => handleReject(event.id)}
-                                  aria-label="Reject event"
-                                >
-                                  <IconX size={16} />
-                                </ActionIcon>
-                                <ActionIcon
-                                  size="sm"
-                                  color="yellow"
-                                  variant="subtle"
-                                  onClick={() => handleFlag(event.id)}
-                                  aria-label="Flag event"
-                                >
-                                  <IconFlag size={16} />
-                                </ActionIcon>
-                                <ActionIcon
-                                  size="sm"
-                                  color="blue"
-                                  variant="subtle"
-                                  component={Link}
-                                  to={`/events/detail/${event.id}`}
-                                  aria-label="View event"
-                                >
-                                  <IconEye size={16} />
-                                </ActionIcon>
-                              </Group>
-                            </Table.Td>
-                          </Table.Tr>
-                        ))}
+                        {events.map((event: Event) => {
+                          const isUnderReview = event.status === 'UNDER_REVIEW';
+                          return (
+                            <Table.Tr
+                              key={event.id}
+                              className="transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/50"
+                            >
+                              <Table.Td>
+                                <Checkbox
+                                  checked={selectedEvents.has(event.id)}
+                                  onChange={() => handleSelect(event.id)}
+                                  aria-label={`Select ${event.title}`}
+                                />
+                              </Table.Td>
+                              <Table.Td>
+                                <Group gap="xs">
+                                  <Text size="sm" fw={500} lineClamp={1} style={{ color: 'var(--app-text)' }}>
+                                    {event.title}
+                                  </Text>
+                                  {isUnderReview && (
+                                    <Badge color="yellow" size="xs" radius="md" variant="filled">
+                                      Under Review
+                                    </Badge>
+                                  )}
+                                </Group>
+                              </Table.Td>
+                              <Table.Td>
+                                <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+                                  {event.host.displayName}
+                                </Text>
+                              </Table.Td>
+                              <Table.Td>
+                                <Badge color={statusColors[event.status] || 'gray'} radius="md">
+                                  {event.status}
+                                </Badge>
+                              </Table.Td>
+                              <Table.Td>
+                                <Text size="sm" style={{ color: 'var(--app-text-muted)' }}>
+                                  {formatDate(event.createdAt)}
+                                </Text>
+                              </Table.Td>
+                              <Table.Td>
+                                <Group gap={4} wrap="nowrap">
+                                  <ActionIcon
+                                    size="sm"
+                                    color="green"
+                                    variant="subtle"
+                                    onClick={() => handleApprove(event.id)}
+                                    disabled={!isUnderReview}
+                                    aria-label="Approve event"
+                                  >
+                                    <IconCheck size={16} />
+                                  </ActionIcon>
+                                  <ActionIcon
+                                    size="sm"
+                                    color="red"
+                                    variant="subtle"
+                                    onClick={() => handleReject(event.id)}
+                                    disabled={!isUnderReview}
+                                    aria-label="Reject event"
+                                  >
+                                    <IconX size={16} />
+                                  </ActionIcon>
+                                  <ActionIcon
+                                    size="sm"
+                                    color="yellow"
+                                    variant="subtle"
+                                    onClick={() => handleFlag(event.id)}
+                                    disabled={event.status !== 'PUBLISHED' && event.status !== 'COMPLETED'}
+                                    aria-label="Flag event"
+                                  >
+                                    <IconFlag size={16} />
+                                  </ActionIcon>
+                                  {/* ✅ NEW: Delete Permanently */}
+                                  <ActionIcon
+                                    size="sm"
+                                    color="red"
+                                    variant="subtle"
+                                    onClick={() => handleDelete(event.id)}
+                                    aria-label="Permanently delete event"
+                                    title="Delete Forever"
+                                  >
+                                    <IconTrashX size={16} />
+                                  </ActionIcon>
+                                  {/* ✅ UPDATED: Admin view link */}
+                                  <ActionIcon
+                                    size="sm"
+                                    color="blue"
+                                    variant="subtle"
+                                    component={Link}
+                                    to={ROUTES.ADMIN_EVENT_DETAIL(event.slug || event.id)}
+                                    aria-label="View event in admin mode"
+                                  >
+                                    <IconEye size={16} />
+                                  </ActionIcon>
+                                </Group>
+                              </Table.Td>
+                            </Table.Tr>
+                          );
+                        })}
                       </Table.Tbody>
                     </Table>
                   </Table.ScrollContainer>
@@ -360,7 +429,7 @@ export function AdminEventsPage() {
         </motion.div>
       </Stack>
 
-      {/* Reject Modal */}
+      {/* Single reject modal */}
       <Modal
         opened={rejectModalOpen}
         onClose={() => {
@@ -408,16 +477,68 @@ export function AdminEventsPage() {
         </Stack>
       </Modal>
 
-      {/* Bulk action confirmation */}
-      <ConfirmModal
+      {/* Bulk action modal */}
+      <Modal
         opened={!!bulkConfirmModal}
-        onClose={() => setBulkConfirmModal(null)}
-        onConfirm={confirmBulkAction}
-        title={`Bulk ${bulkConfirmModal?.type === 'approve' ? 'Approve' : 'Reject'}`}
-        message={`Are you sure you want to ${bulkConfirmModal?.type === 'approve' ? 'approve' : 'reject'} ${bulkConfirmModal?.count} event(s)?`}
-        confirmLabel={bulkConfirmModal?.type === 'approve' ? 'Approve' : 'Reject'}
-        confirmColor={bulkConfirmModal?.type === 'approve' ? 'green' : 'red'}
-        loading={actionLoading}
+        onClose={() => {
+          setBulkConfirmModal(null);
+          setBulkRejectReason('');
+        }}
+        title={
+          <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
+            Bulk {bulkConfirmModal?.type === 'approve' ? 'Approve' : 'Reject'}
+          </Text>
+        }
+        radius="xl"
+        styles={{
+          content: { background: 'var(--app-surface)' },
+          header: { background: 'var(--app-surface)', borderBottom: '1px solid var(--app-border)' },
+        }}
+      >
+        <Stack>
+          <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+            Are you sure you want to {bulkConfirmModal?.type === 'approve' ? 'approve' : 'reject'} {bulkConfirmModal?.count} event(s)?
+          </Text>
+          {bulkConfirmModal?.type === 'reject' && (
+            <Textarea
+              label="Rejection Reason (optional but recommended)"
+              placeholder="Provide a reason for rejecting these events (will be sent to hosts)"
+              value={bulkRejectReason}
+              onChange={(e) => setBulkRejectReason(e.currentTarget.value)}
+              maxLength={500}
+              minRows={2}
+              radius="md"
+              styles={{
+                label: { color: 'var(--app-text)' },
+                input: { background: 'var(--app-bg)', color: 'var(--app-text)' },
+              }}
+            />
+          )}
+          <Group justify="flex-end">
+            <Button variant="ghost" onClick={() => setBulkConfirmModal(null)} radius="md">
+              Cancel
+            </Button>
+            <Button
+              color={bulkConfirmModal?.type === 'approve' ? 'green' : 'red'}
+              onClick={confirmBulkAction}
+              loading={actionLoading}
+              radius="md"
+            >
+              {bulkConfirmModal?.type === 'approve' ? 'Approve' : 'Reject'}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* ✅ NEW: Delete Confirmation Modal */}
+      <ConfirmModal
+        opened={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Event Permanently"
+        message="Are you sure you want to permanently delete this event? This action cannot be undone. All associated data (RSVPs, reviews, media) will be removed."
+        confirmLabel="Delete Forever"
+        confirmColor="red"
       />
     </PageContainer>
   );

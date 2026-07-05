@@ -80,7 +80,11 @@ export const eventsApi = {
   // ----- Media -----
   // ✅ FIXED: Removed explicit 'Content-Type' header – Axios will auto‑set it for FormData
   uploadMedia: (eventId: string, formData: FormData) =>
-    api.post<ApiResponse<Event>>(`/api/events/${eventId}/media`, formData),
+    api.post<ApiResponse<Event>>(`/api/events/${eventId}/media`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
 
   deleteMedia: (eventId: string, mediaId: string) =>
     api.delete<ApiResponse<Event>>(`/api/events/${eventId}/media/${mediaId}`),

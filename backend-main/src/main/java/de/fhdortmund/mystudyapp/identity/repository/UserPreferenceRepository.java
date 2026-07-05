@@ -14,4 +14,7 @@ public interface UserPreferenceRepository extends JpaRepository<UserPreference, 
     Optional<UserPreference> findByUserId(UUID userId);
 
     boolean existsByUserId(UUID userId);
+
+    // ✅ Added to delete user preferences by user ID
+    void deleteByUserId(UUID userId);
 }

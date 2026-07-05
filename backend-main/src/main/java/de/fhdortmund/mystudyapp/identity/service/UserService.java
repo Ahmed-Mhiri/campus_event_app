@@ -43,6 +43,7 @@ import de.fhdortmund.mystudyapp.identity.model.TrustLevel;
 import de.fhdortmund.mystudyapp.identity.model.User;
 import de.fhdortmund.mystudyapp.identity.model.VerificationToken;
 import de.fhdortmund.mystudyapp.identity.repository.PasswordResetTokenRepository;
+import de.fhdortmund.mystudyapp.identity.repository.UserPreferenceRepository;
 import de.fhdortmund.mystudyapp.identity.repository.UserRepository;
 import de.fhdortmund.mystudyapp.identity.repository.VerificationTokenRepository;
 import de.fhdortmund.mystudyapp.moderation.repository.ReportRepository;
@@ -72,8 +73,9 @@ public class UserService {
     private final RsvpRepository rsvpRepository;
     private final ReportRepository reportRepository;
 
-    // TTL-based blacklist: token -> revocation timestamp
-    // Tokens older than 7 days are auto-evicted on every check
+    // ✅ NEW: Inject UserPreferenceRepository
+    private final UserPreferenceRepository userPreferenceRepository;
+
     private static final long BLACKLIST_TTL_SECONDS = 604_800; // 7 days
     private final Map<String, Instant> blacklistedTokens = new ConcurrentHashMap<>();
 
@@ -274,7 +276,6 @@ public class UserService {
     }
 
     public boolean isTokenBlacklisted(String token) {
-        // Auto-evict entries older than TTL on every check
         Instant cutoff = Instant.now().minusSeconds(BLACKLIST_TTL_SECONDS);
         blacklistedTokens.entrySet().removeIf(e -> e.getValue().isBefore(cutoff));
         return blacklistedTokens.containsKey(token);
@@ -345,6 +346,9 @@ public class UserService {
 
         verificationTokenRepository.deleteAllByUserId(userId);
         passwordResetTokenRepository.deleteAllByUserId(userId);
+
+        // ✅ ADDED: Explicitly delete user preferences to avoid FK constraint violation
+        userPreferenceRepository.deleteByUserId(userId);
 
         if (currentToken != null) {
             blacklistedTokens.put(currentToken, Instant.now());

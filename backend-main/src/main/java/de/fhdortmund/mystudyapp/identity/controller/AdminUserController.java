@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,6 +32,9 @@ public class AdminUserController {
 
     private final UserService userService;
     private final TrustLevelService trustLevelService;
+
+    // ✅ DTO for JSON body
+    public record UpdateTrustRequest(TrustLevel trustLevel) {}
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<UserDto>>> listUsers(
@@ -63,14 +67,15 @@ public class AdminUserController {
         return ResponseEntity.ok(ApiResponse.success(user, "User retrieved"));
     }
 
+    // ✅ Now accepts JSON body via @RequestBody
     @PatchMapping("/{userId}/trust-level")
     public ResponseEntity<ApiResponse<Void>> updateTrustLevel(
             @PathVariable UUID userId,
-            @RequestParam TrustLevel trustLevel) {
+            @RequestBody UpdateTrustRequest request) {
 
-        trustLevelService.updateTrustLevel(userId, trustLevel);
+        trustLevelService.updateTrustLevel(userId, request.trustLevel());
         return ResponseEntity.ok(ApiResponse.success(null,
-            "Trust level updated to " + trustLevel));
+                "Trust level updated to " + request.trustLevel()));
     }
 
     @PostMapping("/{userId}/flag")

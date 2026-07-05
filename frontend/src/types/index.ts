@@ -170,6 +170,7 @@ export interface Event {
   slug: string;
   viewCount: number;
   cancellationReason: string | null;
+  deleted: boolean; // ✅ ADDED
 }
 
 export interface CreateEventRequest {
