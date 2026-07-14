@@ -1,5 +1,6 @@
 // src/pages/Admin/AdminReportsPage.tsx
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Stack,
   Paper,
@@ -14,11 +15,15 @@ import {
   ActionIcon,
   Button,
   Modal,
+  Anchor,
+  Textarea,
+  Divider,
 } from '@mantine/core';
-import { IconCheck, IconX, IconEye, IconFlag } from '@tabler/icons-react';
+import { IconCheck, IconX, IconEye, IconFlag, IconExternalLink } from '@tabler/icons-react';
 import { motion } from 'framer-motion';
 import { useAdmin } from '@/hooks/useAdmin';
 import { formatDate } from '@/utils/dateFormatter';
+import { ROUTES } from '@/constants/routes';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -30,7 +35,9 @@ export function AdminReportsPage() {
   const [page, setPage] = useState(0);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [reasonFilter, setReasonFilter] = useState<string | null>(null);
-  const [resolveModal, setResolveModal] = useState<{ report: Report; flag: boolean } | null>(null);
+
+  // Modals state
+  const [viewedReport, setViewedReport] = useState<Report | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ reportId: string } | null>(null);
 
   const { useAdminReports, resolveReport, deleteReport } = useAdmin();
@@ -60,7 +67,7 @@ export function AdminReportsPage() {
   const handleResolve = async (reportId: string, flagEvent: boolean) => {
     await resolveReport({ reportId, flagEvent });
     await refetch();
-    setResolveModal(null);
+    setViewedReport(null);
   };
 
   const handleDelete = (reportId: string) => {
@@ -71,6 +78,7 @@ export function AdminReportsPage() {
     if (!deleteConfirm) return;
     await deleteReport(deleteConfirm.reportId);
     setDeleteConfirm(null);
+    setViewedReport(null);
     await refetch();
   };
 
@@ -92,11 +100,7 @@ export function AdminReportsPage() {
           subtitle="Review and resolve user-submitted event reports"
         />
 
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={staggerContainer}
-        >
+        <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
           <motion.div variants={slideUp}>
             <Paper
               withBorder
@@ -178,9 +182,18 @@ export function AdminReportsPage() {
                             className="transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/50"
                           >
                             <Table.Td>
-                              <Text fw={500} size="sm" lineClamp={1} style={{ color: 'var(--app-text)' }}>
-                                {report.eventTitle}
-                              </Text>
+                              <Anchor
+                                component={Link}
+                                to={ROUTES.ADMIN_EVENT_DETAIL(report.eventId)}
+                                target="_blank"
+                                fw={500}
+                                size="sm"
+                                lineClamp={1}
+                                style={{ color: 'var(--app-primary)' }}
+                                className="hover:underline flex items-center gap-1"
+                              >
+                                {report.eventTitle} <IconExternalLink size={12} />
+                              </Anchor>
                             </Table.Td>
                             <Table.Td>
                               <Badge color="red" radius="md" variant="light">
@@ -188,9 +201,16 @@ export function AdminReportsPage() {
                               </Badge>
                             </Table.Td>
                             <Table.Td>
-                              <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
-                                {report.reporter.displayName}
-                              </Text>
+                              <Anchor
+                                component={Link}
+                                to={ROUTES.USER_PROFILE(report.reporter.id)}
+                                target="_blank"
+                                size="sm"
+                                style={{ color: 'var(--app-text)' }}
+                                className="hover:text-brand-500 flex items-center gap-1"
+                              >
+                                {report.reporter.displayName} <IconExternalLink size={12} />
+                              </Anchor>
                             </Table.Td>
                             <Table.Td>
                               <Badge
@@ -208,30 +228,16 @@ export function AdminReportsPage() {
                             </Table.Td>
                             <Table.Td>
                               <Group gap={4}>
-                                {report.status === 'OPEN' && (
-                                  <>
-                                    <ActionIcon
-                                      color="green"
-                                      variant="subtle"
-                                      size="sm"
-                                      onClick={() => setResolveModal({ report, flag: false })}
-                                      title="Resolve without flagging"
-                                      aria-label="Resolve without flagging"
-                                    >
-                                      <IconCheck size={16} />
-                                    </ActionIcon>
-                                    <ActionIcon
-                                      color="orange"
-                                      variant="subtle"
-                                      size="sm"
-                                      onClick={() => setResolveModal({ report, flag: true })}
-                                      title="Resolve and flag event"
-                                      aria-label="Resolve and flag event"
-                                    >
-                                      <IconEye size={16} />
-                                    </ActionIcon>
-                                  </>
-                                )}
+                                <ActionIcon
+                                  color="blue"
+                                  variant="subtle"
+                                  size="sm"
+                                  onClick={() => setViewedReport(report)}
+                                  title="View Report Details"
+                                  aria-label="View Report Details"
+                                >
+                                  <IconEye size={16} />
+                                </ActionIcon>
                                 <ActionIcon
                                   color="red"
                                   variant="subtle"
@@ -269,43 +275,111 @@ export function AdminReportsPage() {
         </motion.div>
       </Stack>
 
-      {/* Resolve Modal */}
+      {/* View Details Modal */}
       <Modal
-        opened={!!resolveModal}
-        onClose={() => setResolveModal(null)}
+        opened={!!viewedReport}
+        onClose={() => setViewedReport(null)}
         title={
           <Text fw={700} size="lg" style={{ color: 'var(--app-text)' }}>
-            Resolve Report
+            Report Details
           </Text>
         }
+        size="lg"
         radius="xl"
         styles={{
           content: { background: 'var(--app-surface)' },
           header: { background: 'var(--app-surface)', borderBottom: '1px solid var(--app-border)' },
         }}
       >
-        <Stack>
-          <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
-            {resolveModal?.flag
-              ? 'This will resolve the report and flag the event (move to UNDER_REVIEW).'
-              : 'This will resolve the report without flagging the event.'}
-          </Text>
-          <Group justify="flex-end">
-            <Button variant="ghost" onClick={() => setResolveModal(null)} radius="md">
-              Cancel
-            </Button>
-            <Button
-              color={resolveModal?.flag ? 'orange' : 'green'}
-              onClick={() =>
-                resolveModal &&
-                handleResolve(resolveModal.report.id, resolveModal.flag)
-              }
-              radius="md"
-            >
-              Confirm
-            </Button>
-          </Group>
-        </Stack>
+        {viewedReport && (
+          <Stack gap="md" mt="sm">
+            <Group grow align="flex-start">
+              <div>
+                <Text size="xs" fw={700} className="uppercase" style={{ color: 'var(--app-text-muted)' }}>
+                  Reported Event
+                </Text>
+                <Anchor
+                  component={Link}
+                  to={ROUTES.ADMIN_EVENT_DETAIL(viewedReport.eventId)}
+                  target="_blank"
+                  fw={500}
+                  className="flex items-center gap-1"
+                >
+                  {viewedReport.eventTitle} <IconExternalLink size={14} />
+                </Anchor>
+              </div>
+              <div>
+                <Text size="xs" fw={700} className="uppercase" style={{ color: 'var(--app-text-muted)' }}>
+                  Reported By
+                </Text>
+                <Anchor
+                  component={Link}
+                  to={ROUTES.USER_PROFILE(viewedReport.reporter.id)}
+                  target="_blank"
+                  fw={500}
+                  className="flex items-center gap-1 text-slate-700 dark:text-slate-300"
+                >
+                  {viewedReport.reporter.displayName} <IconExternalLink size={14} />
+                </Anchor>
+              </div>
+            </Group>
+
+            <div>
+              <Text size="xs" fw={700} className="uppercase mb-1" style={{ color: 'var(--app-text-muted)' }}>
+                Reason
+              </Text>
+              <Badge color="red">{viewedReport.reason}</Badge>
+            </div>
+
+            <div>
+              <Text size="xs" fw={700} className="uppercase mb-1" style={{ color: 'var(--app-text-muted)' }}>
+                Message / Details
+              </Text>
+              <Textarea
+                readOnly
+                value={viewedReport.details || 'No additional details were provided.'}
+                minRows={4}
+                maxRows={8}
+                autosize
+                styles={{
+                  input: {
+                    background: 'var(--app-bg)',
+                    color: 'var(--app-text)',
+                    borderColor: 'var(--app-border)',
+                    cursor: 'default',
+                  },
+                }}
+              />
+            </div>
+
+            <Divider my="sm" style={{ borderColor: 'var(--app-border)' }} />
+
+            {/* Admin Actions */}
+            {viewedReport.status === 'OPEN' ? (
+              <Group justify="flex-end">
+                <Button
+                  variant="default"
+                  color="gray"
+                  onClick={() => handleResolve(viewedReport.id, false)}
+                  leftSection={<IconCheck size={16} />}
+                >
+                  Dismiss (Resolve without action)
+                </Button>
+                <Button
+                  color="orange"
+                  onClick={() => handleResolve(viewedReport.id, true)}
+                  leftSection={<IconFlag size={16} />}
+                >
+                  Resolve & Flag Event
+                </Button>
+              </Group>
+            ) : (
+              <Badge color="green" radius="md" size="lg">
+                This report has already been resolved.
+              </Badge>
+            )}
+          </Stack>
+        )}
       </Modal>
 
       {/* Delete confirmation */}

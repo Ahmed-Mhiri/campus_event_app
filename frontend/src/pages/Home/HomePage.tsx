@@ -1,8 +1,8 @@
-import { useEffect } from 'react'; // ✅ Added useEffect
+import { useEffect } from 'react';
 import { SimpleGrid, Stack, Text, Group, Skeleton, Title, ThemeIcon, Button as MantineButton } from '@mantine/core';
 import { IconArrowRight, IconQrcode, IconScan, IconAntennaBars5, IconStar } from '@tabler/icons-react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query'; // ✅ Added useQueryClient
+import { useQueryClient } from '@tanstack/react-query';
 import { EventCard } from '@/components/molecules/EventCard';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { Section } from '@/components/atoms/Section';
@@ -21,7 +21,7 @@ import { useAuthStore } from '@/stores/authStore';
 import type { Event } from '@/types';
 
 export function HomePage() {
-  const queryClient = useQueryClient(); // ✅ Initialize Query Client
+  const queryClient = useQueryClient();
   const { data: featuredData, isLoading: featuredLoading } = useFeaturedEvents();
   const { data: categories, isLoading: categoriesLoading } = useCategories();
   const { data: upcomingData } = useEvents({ sort: 'startTime' });
@@ -29,7 +29,7 @@ export function HomePage() {
   const { data: attendedData } = useMyRsvps('ATTENDED'); 
   const navigate = useNavigate();
 
-  // ✅ Force fresh data every time the user lands on or returns to the Homepage
+  // Force fresh data every time the user lands on or returns to the Homepage
   useEffect(() => {
     // This clears the cache for these specific items, forcing the banners 
     // to check the server for your latest Check-In or Review status.
@@ -243,7 +243,7 @@ function LiveActionBanner({ events }: { events: Event[] }) {
               size="md"
               radius="xl"
               leftSection={<IconQrcode size={20} />}
-              className="shadow-lg hover:scale-105 transition-transform text-slate-900 dark:text-white"
+              className="shadow-lg hover:scale-105 transition-transform !text-violet-900"
             >
               Show QR Code
             </MantineButton>
@@ -279,7 +279,7 @@ function LiveActionBanner({ events }: { events: Event[] }) {
               size="md"
               radius="xl"
               leftSection={<IconScan size={20} />}
-              className="shadow-lg hover:scale-105 transition-transform text-slate-900 dark:text-white"
+              className="shadow-lg hover:scale-105 transition-transform !text-emerald-900"
             >
               Scan to Check-in
             </MantineButton>

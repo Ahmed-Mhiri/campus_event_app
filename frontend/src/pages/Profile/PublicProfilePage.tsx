@@ -1,4 +1,5 @@
-import { useParams } from 'react-router-dom';
+// src/pages/Profile/PublicProfilePage.tsx
+import { useParams, Link } from 'react-router-dom';
 import {
   Stack,
   Avatar,
@@ -16,7 +17,7 @@ import {
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { IconCalendar, IconStar, IconMessage } from '@tabler/icons-react';
+import { IconCalendar, IconStar, IconMessage, IconAlertCircle } from '@tabler/icons-react';
 import { api } from '@/api/client';
 import { getAvatarUrl } from '@/utils/fileHelpers';
 import { UserTrustBadge } from '@/components/molecules/UserTrustBadge';
@@ -60,22 +61,14 @@ export function PublicProfilePage() {
 
   // Fetch events and filter by host strictly on the frontend
   const { data: hostedEvents, isLoading: eventsLoading } = useQuery({
-    // Include isAuthenticated so it refetches when login state changes
     queryKey: ['events', 'host', userId, isAuthenticated],
     queryFn: async () => {
-      // Use the authenticated endpoint if logged in, otherwise public
       const endpoint = isAuthenticated ? '/api/events' : '/api/public/events';
-
       const res = await api.get(endpoint, {
         params: { size: 50, sort: 'startTime,asc' },
       });
-
       const allEvents = res.data.data.content || [];
-
-      // Strictly filter out any events that don't belong to this specific profile
       const userEvents = allEvents.filter((event: any) => event.host.id === userId);
-
-      // Return only the top 4 to keep the UI clean
       return userEvents.slice(0, 4);
     },
     enabled: !!userId,
@@ -111,6 +104,22 @@ export function PublicProfilePage() {
         <PageHeader title={data.displayName} subtitle="Public host profile" />
 
         <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
+          {/* ✅ NEW: Flagged User Warning */}
+          {data.trustLevel === 'FLAGGED' && (
+            <motion.div variants={slideUp} className="mb-6">
+              <Alert
+                icon={<IconAlertCircle size={18} />}
+                color="red"
+                radius="md"
+                variant="filled"
+                title="Account Suspended"
+              >
+                This user has been flagged by administrators for violating community
+                guidelines. Their upcoming events have been suspended.
+              </Alert>
+            </motion.div>
+          )}
+
           {/* Hero Card */}
           <motion.div variants={slideUp}>
             <Card variant="elevated" className="overflow-hidden">
@@ -295,7 +304,10 @@ export function PublicProfilePage() {
                       }}
                     >
                       <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-2">
+                        <Link
+                          to={`/profile/${review.reviewer?.id}`}
+                          className="flex items-center gap-2 hover:opacity-80 transition-opacity no-underline"
+                        >
                           <Avatar
                             size={28}
                             radius="xl"
@@ -303,10 +315,15 @@ export function PublicProfilePage() {
                           >
                             {review.reviewer?.displayName?.charAt(0)}
                           </Avatar>
-                          <Text size="sm" fw={500} style={{ color: 'var(--app-text)' }}>
+                          <Text
+                            size="sm"
+                            fw={500}
+                            style={{ color: 'var(--app-text)' }}
+                            className="hover:underline"
+                          >
                             {review.reviewer?.displayName}
                           </Text>
-                        </div>
+                        </Link>
                         <Text size="xs" style={{ color: 'var(--app-text-muted)' }}>
                           {new Date(review.createdAt).toLocaleDateString()}
                         </Text>

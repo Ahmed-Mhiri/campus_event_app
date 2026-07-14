@@ -51,8 +51,8 @@ interface EventSidebarProps {
   onEditEvent?: () => void;
   onCancelEvent?: () => void;
   onDeleteEvent?: () => void;
-  onPublishEvent?: () => void;      // ✅ Added
-  isPublishing?: boolean;           // ✅ Added
+  onPublishEvent?: () => void;
+  isPublishing?: boolean;
   // Trash actions
   onRestoreEvent?: () => void;
   onPermanentDeleteEvent?: () => void;
@@ -217,7 +217,7 @@ export function EventSidebar({
                       You are the host of this event.
                     </Alert>
                     
-                    {/* ✅ NEW: Primary Publish Button for DRAFTS */}
+                    {/* Publish Button for DRAFTS */}
                     {status === 'DRAFT' && (
                       <Button
                         fullWidth
@@ -253,26 +253,22 @@ export function EventSidebar({
                       Manage Photos & Videos
                     </Button>
 
-                    {!hasStarted ? (
-                      <Button
-                        fullWidth
-                        variant="secondary"
-                        onClick={onEditEvent}
-                        leftSection={<IconEdit size={18} />}
-                        className="min-h-[46px]"
-                      >
+                    {status === 'UNDER_REVIEW' ? (
+                      <Tooltip label="You cannot edit an event while it is under administrative review.">
+                        <div>
+                          <Button fullWidth variant="secondary" disabled leftSection={<IconLock size={18} />} className="min-h-[46px]">
+                            Editing Locked
+                          </Button>
+                        </div>
+                      </Tooltip>
+                    ) : !hasStarted ? (
+                      <Button fullWidth variant="secondary" onClick={onEditEvent} leftSection={<IconEdit size={18} />} className="min-h-[46px]">
                         Edit Event Details
                       </Button>
                     ) : (
                       <Tooltip label="You cannot edit details of an event that has already started.">
                         <div>
-                          <Button
-                            fullWidth
-                            variant="secondary"
-                            disabled
-                            leftSection={<IconLock size={18} />}
-                            className="min-h-[46px]"
-                          >
+                          <Button fullWidth variant="secondary" disabled leftSection={<IconLock size={18} />} className="min-h-[46px]">
                             Editing Locked
                           </Button>
                         </div>
@@ -425,7 +421,6 @@ export function EventSidebar({
                   </Stack>
                 ) : actualStatus === 'WAITLISTED' ? (
                   <Stack gap="sm">
-                    {/* ✅ FIX: Forced explicit inline styles so Waitlist text is NEVER hidden in dark mode */}
                     <Button 
                       fullWidth 
                       variant="secondary" 
@@ -436,19 +431,52 @@ export function EventSidebar({
                       You're on the waitlist
                     </Button>
                     {myRsvp && <WaitlistBanner eventId={id} rsvpId={myRsvp.id} />}
+
+                    {!hasStarted && (
+                      <Button
+                        fullWidth
+                        variant="danger"
+                        onClick={onCancelRsvp}
+                        isLoading={isCancelling}
+                        className="min-h-[46px]"
+                      >
+                        Leave waitlist
+                      </Button>
+                    )}
                   </Stack>
                 ) : (
-                  !hasStarted && (
-                    <Button
-                      fullWidth
-                      variant="primary"
-                      onClick={onRsvp}
-                      isLoading={isCreating}
-                      className="min-h-[46px]"
-                    >
-                      {isFull ? 'Join waitlist' : 'Register now'}
-                    </Button>
-                  )
+                  // ─── NOT REGISTERED ───
+                  (() => {
+                    if (status === 'UNDER_REVIEW') {
+                      return (
+                        <Alert color="orange" radius="md" title="Event Suspended">
+                          Registration is temporarily paused while this event is under administrative review.
+                        </Alert>
+                      );
+                    }
+                    if (isLive && !isFull) {
+                      return (
+                        <Button fullWidth variant="primary" onClick={onRsvp} isLoading={isCreating} className="min-h-[46px]">
+                          Join Now
+                        </Button>
+                      );
+                    }
+                    if (isLive && isFull) {
+                      return (
+                        <Button fullWidth variant="secondary" disabled className="min-h-[46px]" style={{ opacity: 0.7 }}>
+                          Event Full
+                        </Button>
+                      );
+                    }
+                    if (!hasStarted && status === 'PUBLISHED') {
+                      return (
+                        <Button fullWidth variant="primary" onClick={onRsvp} isLoading={isCreating} className="min-h-[46px]">
+                          {isFull ? 'Join Waitlist' : 'Register now'}
+                        </Button>
+                      );
+                    }
+                    return null;
+                  })()
                 )}
               </>
             )}
@@ -489,7 +517,6 @@ export function EventSidebar({
                   Share
                 </Button>
 
-                {/* ✅ FIX: Hidden if user is an admin */}
                 {!isHost && !isAdmin && isAuthenticated && (
                   <Button
                     variant="ghost"

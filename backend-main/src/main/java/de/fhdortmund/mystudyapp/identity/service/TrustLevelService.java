@@ -1,5 +1,6 @@
 package de.fhdortmund.mystudyapp.identity.service;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -7,6 +8,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import de.fhdortmund.mystudyapp.common.exception.ForbiddenActionException;
 import de.fhdortmund.mystudyapp.common.exception.ResourceNotFoundException;
+import de.fhdortmund.mystudyapp.events.model.Event;
+import de.fhdortmund.mystudyapp.events.model.EventStatus;
 import de.fhdortmund.mystudyapp.events.repository.EventRepository;
 import de.fhdortmund.mystudyapp.identity.dto.TrustQualificationStatus;
 import de.fhdortmund.mystudyapp.identity.model.TrustLevel;
@@ -40,6 +43,20 @@ public class TrustLevelService {
         TrustLevel oldLevel = user.getTrustLevel();
         user.setTrustLevel(newLevel);
         userRepository.save(user);
+
+        // --- FREEZE LOGIC: Flagged users lose all published events ---
+        if (newLevel == TrustLevel.FLAGGED) {
+            log.warn("User {} has been FLAGGED. Freezing all published events...", userId);
+
+            List<Event> activeEvents = eventRepository.findByHostIdAndStatus(userId, EventStatus.PUBLISHED);
+            for (Event event : activeEvents) {
+                event.setStatus(EventStatus.UNDER_REVIEW);
+            }
+            if (!activeEvents.isEmpty()) {
+                eventRepository.saveAll(activeEvents);
+                log.info("Successfully froze {} events for flagged user {}", activeEvents.size(), userId);
+            }
+        }
 
         log.info("Trust level updated for user {}: {} -> {}", userId, oldLevel, newLevel);
     }
@@ -151,4 +168,3 @@ public class TrustLevelService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
     }
 }
-

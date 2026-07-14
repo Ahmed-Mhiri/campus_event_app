@@ -1,22 +1,82 @@
+// src/pages/Auth/ResetPasswordPage.tsx
 import { useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Title, PasswordInput, Text, Anchor, Stack, ThemeIcon } from '@mantine/core';
+import {
+  Title,
+  PasswordInput,
+  Text,
+  Anchor,
+  Stack,
+  ThemeIcon,
+  Progress,
+  Popover,
+} from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconArrowRight, IconLockCog, IconAlertTriangle } from '@tabler/icons-react';
+import {
+  IconArrowRight,
+  IconLockCog,
+  IconAlertTriangle,
+  IconCheck,
+  IconX,
+} from '@tabler/icons-react';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
 import { Button } from '@/components/ui/Button';
+
+// ─── Password validation (same as RegisterPage) ──────────────────────────────
+
+const requirements = [
+  { re: /[0-9]/, label: 'Includes number' },
+  { re: /[a-z]/, label: 'Includes lowercase letter' },
+  { re: /[A-Z]/, label: 'Includes uppercase letter' },
+  { re: /[^A-Za-z0-9]/, label: 'Includes special symbol' },
+];
+
+function getStrength(password: string) {
+  let multiplier = password.length > 7 ? 0 : 1;
+
+  requirements.forEach((requirement) => {
+    if (!requirement.re.test(password)) {
+      multiplier += 1;
+    }
+  });
+
+  return Math.max(100 - (100 / (requirements.length + 1)) * multiplier, 10);
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────────
 
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [popoverOpened, setPopoverOpened] = useState(false);
+
   const { resetPassword, isResetting } = useAuth();
+
+  const strength = getStrength(newPassword);
+  const strengthColor = strength === 100 ? 'teal' : strength > 50 ? 'yellow' : 'red';
+  const meetsLength = newPassword.length >= 8;
+
+  const checks = requirements.map((requirement, index) => {
+    const meets = requirement.re.test(newPassword);
+    return (
+      <Text
+        key={index}
+        c={meets ? 'teal' : 'dimmed'}
+        size="sm"
+        className="flex items-center gap-2 mt-1"
+      >
+        {meets ? <IconCheck size={14} /> : <IconX size={14} />} {requirement.label}
+      </Text>
+    );
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
+
     if (newPassword !== confirmPassword) {
       notifications.show({
         title: 'Error',
@@ -25,6 +85,7 @@ export function ResetPasswordPage() {
       });
       return;
     }
+
     resetPassword({ token, newPassword, confirmPassword });
   };
 
@@ -71,26 +132,56 @@ export function ResetPasswordPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4" aria-label="Reset password form">
-        <PasswordInput
-          label="New password"
-          placeholder="Enter new password"
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.currentTarget.value)}
-          required
-          aria-label="New password"
-          radius="md"
-          size="md"
-        />
+        {/* ─── New Password with strength popover ─── */}
+        <Popover
+          opened={popoverOpened}
+          position="bottom"
+          width="target"
+          transitionProps={{ transition: 'pop' }}
+        >
+          <Popover.Target>
+            <div
+              onFocusCapture={() => setPopoverOpened(true)}
+              onBlurCapture={() => setPopoverOpened(false)}
+            >
+              <PasswordInput
+                label="New password"
+                placeholder="Enter new password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.currentTarget.value)}
+                required
+                radius="md"
+                size="md"
+                aria-label="New password"
+              />
+            </div>
+          </Popover.Target>
+
+          <Popover.Dropdown>
+            <Progress color={strengthColor} value={strength} size={5} mb="xs" />
+            <Text
+              c={meetsLength ? 'teal' : 'dimmed'}
+              size="sm"
+              className="flex items-center gap-2 mt-1"
+            >
+              {meetsLength ? <IconCheck size={14} /> : <IconX size={14} />}{' '}
+              At least 8 characters
+            </Text>
+            {checks}
+          </Popover.Dropdown>
+        </Popover>
+
         <PasswordInput
           label="Confirm new password"
           placeholder="Confirm new password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.currentTarget.value)}
           required
-          aria-label="Confirm new password"
           radius="md"
           size="md"
+          aria-label="Confirm new password"
         />
+
         <Button
           type="submit"
           variant="primary"

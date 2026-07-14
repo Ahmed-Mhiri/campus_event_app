@@ -1,3 +1,5 @@
+// src/pages/Admin/AdminDashboardPage.tsx
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Stack,
@@ -25,7 +27,7 @@ import {
   IconX,
   IconArrowRight,
   IconShield,
-  IconTrashX, // ✅ NEW
+  IconTrashX,
 } from '@tabler/icons-react';
 import { motion } from 'framer-motion';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -36,12 +38,11 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button as UIButton } from '@/components/ui/Button';
 import { EmptyState } from '@/components/atoms/EmptyState';
-import { ConfirmModal } from '@/components/ui/ConfirmModal'; // ✅ NEW
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { slideUp, staggerContainer } from '@/design-system/animations';
-import { useState } from 'react';
 
 export function AdminDashboardPage() {
-  const { useDashboard, approveEvent, rejectEvent, deleteEvent } = useAdmin(); // ✅ added deleteEvent
+  const { useDashboard, approveEvent, rejectEvent, deleteEvent } = useAdmin();
   const { data: stats, isLoading, error, refetch } = useDashboard();
 
   // Rejection modal
@@ -49,7 +50,7 @@ export function AdminDashboardPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [pendingRejectId, setPendingRejectId] = useState<string | null>(null);
 
-  // ✅ NEW: Delete confirmation
+  // Delete confirmation
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
@@ -83,7 +84,6 @@ export function AdminDashboardPage() {
     }
   };
 
-  // ✅ NEW: Delete handler
   const handleDelete = (id: string) => {
     setPendingDeleteId(id);
     setDeleteConfirmOpen(true);
@@ -194,11 +194,7 @@ export function AdminDashboardPage() {
           }
         />
 
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={staggerContainer}
-        >
+        <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
           <motion.div variants={slideUp}>
             <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg">
               {statCards.map((card) => (
@@ -365,7 +361,6 @@ export function AdminDashboardPage() {
                               >
                                 <IconX size={16} />
                               </ActionIcon>
-                              {/* ✅ NEW: Delete Permanently */}
                               <ActionIcon
                                 size="sm"
                                 color="red"
@@ -376,7 +371,6 @@ export function AdminDashboardPage() {
                               >
                                 <IconTrashX size={16} />
                               </ActionIcon>
-                              {/* ✅ UPDATED: Admin view link */}
                               <ActionIcon
                                 size="sm"
                                 color="blue"
@@ -559,7 +553,7 @@ export function AdminDashboardPage() {
         </Stack>
       </Modal>
 
-      {/* ✅ NEW: Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal */}
       <ConfirmModal
         opened={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}

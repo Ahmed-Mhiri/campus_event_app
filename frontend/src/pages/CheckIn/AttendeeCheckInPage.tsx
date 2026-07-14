@@ -118,7 +118,7 @@ export function AttendeeCheckInPage() {
         await selfCheckIn({ eventId: eventId!, code });
         setSuccess(true);
 
-        // ✅ Invalidate all relevant queries so the event page updates instantly
+        // Invalidate all relevant queries so the event page updates instantly
         await queryClient.invalidateQueries({ queryKey: ['event'] });
         await queryClient.invalidateQueries({ queryKey: ['my-events'] });
         await queryClient.invalidateQueries({ queryKey: ['rsvps'] });
@@ -165,6 +165,28 @@ export function AttendeeCheckInPage() {
           >
             This event doesn't exist or has been removed.
           </Alert>
+        </motion.div>
+      </PageContainer>
+    );
+  }
+
+  // ─── GUARD: Frozen / non‑published events ───
+  if (event.status !== 'PUBLISHED' && event.status !== 'COMPLETED') {
+    return (
+      <PageContainer size="sm">
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <Alert
+            icon={<IconAlertCircle size={18} />}
+            color="orange"
+            radius="lg"
+            variant="light"
+            title="Event Suspended"
+          >
+            This event is currently under review by administrators. Check‑ins are paused.
+          </Alert>
+          <Button component={Link} to={ROUTES.EVENTS} mt="md" variant="default" fullWidth>
+            Browse Other Events
+          </Button>
         </motion.div>
       </PageContainer>
     );

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Title, TextInput, PasswordInput, Text, Anchor, Stack } from '@mantine/core';
-import { IconArrowRight } from '@tabler/icons-react';
+import { Title, TextInput, PasswordInput, Text, Anchor, Stack, Alert } from '@mantine/core';
+import { IconArrowRight, IconAlertCircle } from '@tabler/icons-react';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/constants/routes';
 import { Button } from '@/components/ui/Button';
@@ -10,14 +10,21 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showResend, setShowResend] = useState(false);
+  const [flaggedError, setFlaggedError] = useState<string | null>(null);
   const { login, isLoggingIn, resendVerification } = useAuth();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setShowResend(false);
+    setFlaggedError(null);
     login({ universityEmail: email, password }).catch((err) => {
-      if (err?.response?.data?.message?.toLowerCase().includes('not verified')) {
+      const message = err?.response?.data?.message || '';
+      if (message.toLowerCase().includes('not verified')) {
         setShowResend(true);
+      } else if (message.toLowerCase().includes('flagged') || message.toLowerCase().includes('suspended')) {
+        setFlaggedError(
+          'Your account has been flagged for violating community guidelines. Please contact support for assistance.'
+        );
       }
     });
   };
@@ -32,6 +39,18 @@ export function LoginPage() {
           Sign in to keep up with what's happening on campus.
         </Text>
       </div>
+
+      {flaggedError && (
+        <Alert
+          icon={<IconAlertCircle size={18} />}
+          color="red"
+          radius="md"
+          variant="filled"
+          title="Access Denied"
+        >
+          {flaggedError}
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-4" aria-label="Login form">
         <TextInput

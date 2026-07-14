@@ -241,7 +241,7 @@ export function MyEventsPage() {
         ) : (
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
             {filteredEvents.map((event) => {
-              // ✅ TIME-AWARE LOGIC
+              // TIME-AWARE LOGIC
               const hasStarted = new Date(event.startTime).getTime() <= Date.now();
               const isEnded = new Date(event.endTime).getTime() <= Date.now();
               const isLive = hasStarted && !isEnded && event.status === 'PUBLISHED';
@@ -292,8 +292,8 @@ export function MyEventsPage() {
                         </Menu.Item>
                       )}
 
-                      {/* Edit: only if NOT started and not cancelled/completed */}
-                      {!event.deleted && event.status !== 'CANCELLED' && event.status !== 'COMPLETED' && !hasStarted && (
+                      {/* Edit: only if NOT started, cancelled, completed, or under review */}
+                      {!event.deleted && event.status !== 'CANCELLED' && event.status !== 'COMPLETED' && event.status !== 'UNDER_REVIEW' && !hasStarted && (
                         <Menu.Item
                           component={Link}
                           to={ROUTES.EDIT_EVENT(event.id)}

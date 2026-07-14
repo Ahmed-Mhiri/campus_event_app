@@ -2,7 +2,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Image, Text, Group, Badge, Button, Avatar } from '@mantine/core';
 import { motion } from 'framer-motion';
-import { IconCalendar, IconMapPin, IconCrown, IconEdit, IconCheck } from '@tabler/icons-react';
+import { IconCalendar, IconMapPin, IconCrown, IconEdit, IconCheck, IconX } from '@tabler/icons-react';
 import { formatDate } from '@/utils/dateFormatter';
 import { getAvatarUrl } from '@/utils/fileHelpers';
 import { ROUTES } from '@/constants/routes';
@@ -19,7 +19,6 @@ interface EventCardProps {
   event: Event;
 }
 
-// ✅ URL helper to prepend the backend URL and correct the port
 const getFullImageUrl = (url?: string | null) => {
   if (!url) return null;
   if (url.startsWith('http')) return url;
@@ -41,42 +40,179 @@ export function EventCard({ event }: EventCardProps) {
     status,
     categories,
     media,
-    myRsvpStatus,
+    myRsvpStatus, // fallback if RSVP query hasn't resolved yet
     isHost,
   } = event;
 
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuthStore();
-  const { createRsvp, isCreating } = useRsvp(id);
+
+  // Fetch the actual RSVP (now the source of truth)
+  const { createRsvp, cancelRsvp, isCreating, isCancelling, useMyRsvpForEvent } = useRsvp(id);
+  const { data: myRsvp, isLoading: isRsvpLoading } = useMyRsvpForEvent(id);
+
+  // Use the fetched RSVP status if available, otherwise fall back to event.myRsvpStatus
+  const actualStatus = myRsvp?.status ?? myRsvpStatus;
 
   const isActuallyHost = isHost || (user?.id === host.id);
 
-  // ✅ TIME-AWARE: check if event is currently live
   const now = Date.now();
   const start = new Date(startTime).getTime();
   const end = new Date(endTime).getTime();
   const isLive = status === 'PUBLISHED' && start <= now && now < end;
+  const hasStarted = start <= now;
 
-  // ✅ Use .url (original image) instead of .mediumUrl to match detail page behavior
   const rawCoverImage =
     media?.find((m) => m.mediaType === 'IMAGE' && m.displayOrder === 0)?.url ||
     media?.find((m) => m.mediaType === 'IMAGE')?.url ||
     null;
-
   const coverImage = getFullImageUrl(rawCoverImage);
 
   const isFull = currentRsvpCount >= maxCapacity;
   const isCancelled = status === 'CANCELLED';
   const isCompleted = status === 'COMPLETED';
 
-  let rsvpLabel = 'Register';
-  if (isActuallyHost) rsvpLabel = 'Manage Event';
-  else if (isCancelled) rsvpLabel = 'Cancelled';
-  else if (isCompleted) rsvpLabel = 'Completed';
-  else if (myRsvpStatus === 'GOING') rsvpLabel = 'Going';
-  else if (myRsvpStatus === 'WAITLISTED') rsvpLabel = 'Waitlisted';
-  else if (myRsvpStatus === 'ATTENDED') rsvpLabel = 'Checked In';
-  else if (isFull) rsvpLabel = 'Join Waitlist';
+  // ─── Button logic ──────────────────────────────────────────────────────────
+  let buttonLabel = 'Register';
+  let buttonVariant: 'default' | 'filled' | 'light' = 'light';
+  let buttonColor: string = 'brand';
+  let buttonDisabled = false;
+  let buttonLoading = false;
+  let handleClick: (e: React.MouseEvent) => void;
+
+  // If RSVP is still loading, show a neutral disabled button to avoid flicker
+  if (isRsvpLoading && isAuthenticated) {
+    buttonLabel = 'Loading…';
+    buttonVariant = 'light';
+    buttonColor = 'gray';
+    buttonDisabled = true;
+    handleClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+  } else if (isActuallyHost) {
+    buttonLabel = 'Manage Event';
+    buttonVariant = 'default';
+    buttonColor = 'gray';
+    handleClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      navigate(`/events/edit/${id}`);
+    };
+  } else if (isCancelled || isCompleted) {
+    buttonLabel = isCancelled ? 'Cancelled' : 'Completed';
+    buttonVariant = 'light';
+    buttonColor = 'gray';
+    buttonDisabled = true;
+    handleClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+  } else if (!isAuthenticated) {
+    buttonLabel = 'Log in to register';
+    buttonVariant = 'light';
+    buttonColor = 'brand';
+    handleClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      navigate(ROUTES.LOGIN);
+    };
+  } else if (actualStatus === 'ATTENDED') {
+    buttonLabel = 'Checked In';
+    buttonVariant = 'filled';
+    buttonColor = 'green';
+    handleClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      navigate(ROUTES.EVENT_DETAIL(slug));
+    };
+  } else if (actualStatus === 'GOING') {
+    // ── GOING ──────────────────────────────────────────────────────
+    if (isLive) {
+      buttonLabel = 'Check In';
+      buttonVariant = 'filled';
+      buttonColor = 'brand';
+      handleClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        navigate(`/check-in/attendee/${id}`);
+      };
+    } else if (!hasStarted && myRsvp) {
+      buttonLabel = 'Cancel registration';
+      buttonVariant = 'filled';
+      buttonColor = 'red';
+      buttonLoading = isCancelling;
+      handleClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        cancelRsvp({ rsvpId: myRsvp.id });
+      };
+    } else {
+      buttonLabel = 'Going';
+      buttonVariant = 'light';
+      buttonColor = 'brand';
+      handleClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        navigate(ROUTES.EVENT_DETAIL(slug));
+      };
+    }
+  } else if (actualStatus === 'WAITLISTED') {
+    // ── WAITLISTED ────────────────────────────────────────────────
+    if (!hasStarted && myRsvp) {
+      buttonLabel = 'Leave waitlist';
+      buttonVariant = 'filled';
+      buttonColor = 'red';
+      buttonLoading = isCancelling;
+      handleClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        cancelRsvp({ rsvpId: myRsvp.id });
+      };
+    } else {
+      buttonLabel = 'Waitlisted';
+      buttonVariant = 'light';
+      buttonColor = 'brand';
+      handleClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        navigate(ROUTES.EVENT_DETAIL(slug));
+      };
+    }
+  } else {
+    // ── NOT REGISTERED ──────────────────────────────────────────
+    if (isLive && !isFull) {
+      buttonLabel = 'Join Now';
+      buttonVariant = 'filled';
+      buttonColor = 'brand';
+      buttonLoading = isCreating;
+      handleClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        createRsvp();
+      };
+    } else if (isLive && isFull) {
+      buttonLabel = 'Event Full';
+      buttonVariant = 'light';
+      buttonColor = 'gray';
+      buttonDisabled = true;
+      handleClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
+    } else {
+      // Future event
+      buttonLabel = isFull ? 'Join Waitlist' : 'Register';
+      buttonVariant = 'light';
+      buttonColor = 'brand';
+      buttonLoading = isCreating;
+      handleClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        createRsvp();
+      };
+    }
+  }
 
   const avatarSrc = host.profileImageUrl || getAvatarUrl(host.id) || undefined;
 
@@ -103,50 +239,32 @@ export function EventCard({ event }: EventCardProps) {
             className="transition-transform duration-300 group-hover:scale-105"
             radius="md"
           />
-
-          {/* ─── BADGE CONTAINER (top-right) ─── */}
           <div className="absolute top-3 right-3 flex gap-1 flex-wrap justify-end">
-            {/* ✅ Checked In badge – only when user has ATTENDED status */}
-            {myRsvpStatus === 'ATTENDED' && (
-              <Badge
-                color="green"
-                variant="filled"
-                radius="md"
-                className="flex items-center gap-1"
-                leftSection={<IconCheck size={12} />}
-              >
+            {actualStatus === 'ATTENDED' && (
+              <Badge color="green" variant="filled" radius="md" leftSection={<IconCheck size={12} />}>
                 Checked In
               </Badge>
             )}
-
-            {/* Live badge – appears when event is currently ongoing */}
-            {isLive && !(myRsvpStatus === 'ATTENDED') && (
+            {isLive && !(actualStatus === 'ATTENDED') && (
               <Badge
                 color="red"
                 variant="filled"
                 radius="md"
                 className="animate-pulse flex items-center gap-1"
-                style={{
-                  boxShadow: '0 0 12px rgba(239, 68, 68, 0.6)',
-                  fontWeight: 600,
-                }}
+                style={{ boxShadow: '0 0 12px rgba(239, 68, 68, 0.6)', fontWeight: 600 }}
                 leftSection={<span className="w-2 h-2 bg-white rounded-full" />}
               >
                 Live
               </Badge>
             )}
-
             {isCancelled && <Badge color="red" variant="filled" radius="md">Cancelled</Badge>}
             {isCompleted && <Badge color="gray" variant="filled" radius="md">Completed</Badge>}
-
-            {/* Only show Open/Full if not live and not checked in */}
-            {!isLive && myRsvpStatus !== 'ATTENDED' && status === 'PUBLISHED' && !isFull && (
+            {!isLive && actualStatus !== 'ATTENDED' && status === 'PUBLISHED' && !isFull && (
               <Badge color="green" variant="filled" radius="md">Open</Badge>
             )}
-            {!isLive && myRsvpStatus !== 'ATTENDED' && status === 'PUBLISHED' && isFull && (
+            {!isLive && actualStatus !== 'ATTENDED' && status === 'PUBLISHED' && isFull && (
               <Badge color="orange" variant="filled" radius="md">Full</Badge>
             )}
-
             {isActuallyHost && (
               <Badge color="blue" variant="light" leftSection={<IconCrown size={12} />}>
                 Your Event
@@ -159,20 +277,16 @@ export function EventCard({ event }: EventCardProps) {
           <Text fw={600} size="xl" lineClamp={2} lh={1.3} className="tracking-tight">
             {title}
           </Text>
-
           {categories.length > 0 && (
             <Group gap={6}>
               {categories.slice(0, 3).map((cat) => (
                 <CategoryChip key={cat.id} name={cat.name} color={cat.color} size="xs" />
               ))}
               {categories.length > 3 && (
-                <Text size="xs" c="dimmed">
-                  +{categories.length - 3}
-                </Text>
+                <Text size="xs" c="dimmed">+{categories.length - 3}</Text>
               )}
             </Group>
           )}
-
           <Group gap="xs" wrap="nowrap" c="dimmed" className="text-sm">
             <Group gap={4} wrap="nowrap">
               <IconCalendar size={14} className="flex-shrink-0" />
@@ -184,7 +298,6 @@ export function EventCard({ event }: EventCardProps) {
               <Text size="sm" lineClamp={1}>{location}</Text>
             </Group>
           </Group>
-
           <CapacityBar current={currentRsvpCount} max={maxCapacity} />
 
           <Group gap="xs" align="center" className="mt-auto pt-3">
@@ -217,37 +330,16 @@ export function EventCard({ event }: EventCardProps) {
           <Button
             size="sm"
             radius="md"
-            variant={isActuallyHost ? 'default' : (myRsvpStatus === 'GOING' || myRsvpStatus === 'ATTENDED' ? 'filled' : 'light')}
-            color={isActuallyHost ? 'gray' : (myRsvpStatus === 'GOING' || myRsvpStatus === 'ATTENDED' ? 'green' : 'brand')}
+            variant={buttonVariant}
+            color={buttonColor}
             fullWidth
-            disabled={(!isActuallyHost && isCancelled) || (!isActuallyHost && isCompleted)}
-            loading={isCreating}
-            leftSection={isActuallyHost ? <IconEdit size={16} /> : undefined}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-
-              if (isActuallyHost) {
-                navigate(`/events/edit/${id}`);
-                return;
-              }
-
-              if (!isAuthenticated) {
-                navigate(ROUTES.LOGIN);
-                return;
-              }
-
-              if (myRsvpStatus === 'GOING' || myRsvpStatus === 'WAITLISTED' || myRsvpStatus === 'ATTENDED') {
-                navigate(ROUTES.EVENT_DETAIL(slug));
-                return;
-              }
-
-              createRsvp();
-            }}
+            disabled={buttonDisabled}
+            loading={buttonLoading}
+            onClick={handleClick}
             className="mt-2 min-h-[44px]"
-            aria-label={rsvpLabel}
+            aria-label={buttonLabel}
           >
-            {rsvpLabel}
+            {buttonLabel}
           </Button>
         </div>
       </UICard>

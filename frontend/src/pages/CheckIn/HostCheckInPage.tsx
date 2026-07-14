@@ -66,7 +66,7 @@ export function HostCheckInPage() {
     );
   }
 
-  // ✅ Bulletproof host check – compare user id with event host id
+  // Bulletproof host check – compare user id with event host id
   const isActuallyHost = event.isHost || (user?.id && event.host?.id === user.id) || user?.role === 'ADMIN';
 
   if (!isActuallyHost) {
@@ -91,6 +91,38 @@ export function HostCheckInPage() {
                 </Text>
               </div>
             </Group>
+          </Card>
+        </motion.div>
+      </PageContainer>
+    );
+  }
+
+  // ─── GUARD: Frozen / non‑published events ───
+  if (event.status !== 'PUBLISHED' && event.status !== 'COMPLETED') {
+    return (
+      <PageContainer size="lg">
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <Card
+            variant="default"
+            className="border-orange-200/80 dark:border-orange-900/40"
+            style={{ background: 'rgba(249, 115, 22, 0.03)' }}
+          >
+            <Group gap="md" align="center">
+              <ThemeIcon size={48} radius="xl" variant="light" color="orange">
+                <IconAlertCircle size={24} />
+              </ThemeIcon>
+              <div>
+                <Text fw={600} className="text-orange-700 dark:text-orange-400">
+                  Event Suspended
+                </Text>
+                <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
+                  This event is currently {event.status.toLowerCase().replace('_', ' ')}. You cannot access the check-in scanner.
+                </Text>
+              </div>
+            </Group>
+            <Button component={Link} to={ROUTES.MY_EVENTS} mt="lg" variant={"default" as any}>
+              Back to Dashboard
+            </Button>
           </Card>
         </motion.div>
       </PageContainer>

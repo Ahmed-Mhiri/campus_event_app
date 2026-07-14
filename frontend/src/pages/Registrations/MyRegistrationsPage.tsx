@@ -14,6 +14,8 @@ import {
   Button,
   ThemeIcon,
   Divider,
+  Alert,
+  Tooltip,
 } from '@mantine/core';
 import {
   IconCalendar,
@@ -24,6 +26,7 @@ import {
   IconArrowRight,
   IconTicket,
   IconSearch,
+  IconAlertCircle,
 } from '@tabler/icons-react';
 import { motion } from 'framer-motion';
 import { useRsvp } from '@/hooks/useRsvp';
@@ -245,7 +248,9 @@ export function MyRegistrationsPage() {
         }}
         title={
           <Text fw={600} style={{ color: 'var(--app-text)' }}>
-            Cancel Registration
+            {selectedRsvp?.status === 'WAITLISTED'
+              ? 'Leave Waitlist'
+              : 'Cancel Registration'}
           </Text>
         }
         centered
@@ -253,7 +258,11 @@ export function MyRegistrationsPage() {
       >
         <Stack gap="md">
           <Text size="sm" style={{ color: 'var(--app-text-secondary)' }}>
-            Are you sure you want to cancel your registration for{' '}
+            Are you sure you want to{' '}
+            {selectedRsvp?.status === 'WAITLISTED'
+              ? 'leave the waitlist'
+              : 'cancel your registration'}{' '}
+            for{' '}
             <Text span fw={600} style={{ color: 'var(--app-text)' }}>
               {selectedRsvp?.eventTitle}
             </Text>
@@ -284,7 +293,7 @@ export function MyRegistrationsPage() {
               loading={isCancelling}
               radius="md"
             >
-              Yes, Cancel
+              {selectedRsvp?.status === 'WAITLISTED' ? 'Yes, Leave' : 'Yes, Cancel'}
             </Button>
           </Group>
         </Stack>
@@ -304,6 +313,12 @@ interface RegistrationCardProps {
 function RegistrationCard({ rsvp, index, onCancel }: RegistrationCardProps) {
   const config = statusConfig[rsvp.status] || statusConfig.GOING;
   const StatusIcon = config.icon;
+
+  // ⚠️ If the backend includes event status in the RSVP response (e.g., rsvp.eventStatus),
+  // we can show a warning for suspended events.
+  // For now, we assume it's not present; we add a placeholder comment.
+  // To fully implement, extend the RSVP DTO to include event status.
+  const eventStatus = (rsvp as any).eventStatus; // Hypothetical field
 
   return (
     <motion.div
@@ -370,6 +385,23 @@ function RegistrationCard({ rsvp, index, onCancel }: RegistrationCardProps) {
             </Group>
           </Stack>
 
+          {/* ⚠️ Suspension warning if event is under review */}
+          {eventStatus === 'UNDER_REVIEW' && (
+            <Alert
+              icon={<IconAlertCircle size={16} />}
+              color="orange"
+              radius="md"
+              variant="light"
+              className="mb-3"
+              title="Event Suspended"
+            >
+              <Text size="xs" style={{ color: 'var(--app-text-secondary)' }}>
+                This event is currently under administrative review. Do not attend until it is
+                re‑approved.
+              </Text>
+            </Alert>
+          )}
+
           <Divider
             style={{ borderColor: 'var(--app-border)' }}
             className="my-auto"
@@ -388,16 +420,23 @@ function RegistrationCard({ rsvp, index, onCancel }: RegistrationCardProps) {
               View Event
             </Button>
 
-            {rsvp.status === 'GOING' && (
-              <Button
-                color="red"
-                variant="subtle"
-                size="sm"
-                radius="md"
-                onClick={() => onCancel(rsvp)}
+            {/* Cancel / Leave Waitlist button (disabled if event is suspended) */}
+            {(rsvp.status === 'GOING' || rsvp.status === 'WAITLISTED') && (
+              <Tooltip
+                label="You cannot cancel a registration while the event is under review."
+                disabled={eventStatus !== 'UNDER_REVIEW'}
               >
-                Cancel
-              </Button>
+                <Button
+                  color="red"
+                  variant="subtle"
+                  size="sm"
+                  radius="md"
+                  onClick={() => onCancel(rsvp)}
+                  disabled={eventStatus === 'UNDER_REVIEW'}
+                >
+                  {rsvp.status === 'WAITLISTED' ? 'Leave Waitlist' : 'Cancel'}
+                </Button>
+              </Tooltip>
             )}
           </Group>
         </div>
