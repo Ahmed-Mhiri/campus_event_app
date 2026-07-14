@@ -105,7 +105,8 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(user, "User retrieved"));
     }
 
-    @PutMapping(value = "/me", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    // ✅ CHANGED: @PutMapping → @PostMapping
+    @PostMapping(value = "/me", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<UserDto>> updateProfile(
             @AuthenticationPrincipal org.springframework.security.core.userdetails.User principal,

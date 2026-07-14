@@ -19,10 +19,12 @@ public class RegisterRequest {
     private String universityEmail;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 8, message = "Password must be at least 8 characters")
+    @Size(min = 8, max = 128, message = "Password must be between 8 and 128 characters")
     @Pattern(
-        regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]+$",
-        message = "Password must contain uppercase, lowercase, number, and special character"
+        // (?=.*[^A-Za-z0-9]) means "must contain at least one character that is NOT a letter or a number"
+        // .{8,} means "allow any combination of characters for the rest of it"
+        regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,}$",
+        message = "Password must contain uppercase, lowercase, a number, and a special character"
     )
     private String password;
 

@@ -1,0 +1,120 @@
+/* frontend/src/design-system/global.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..800;1,14..32,400..800&display=swap');
+@import "tailwindcss";
+
+@layer theme, base, mantine, components, utilities;
+
+@import "@mantine/core/styles.layer.css";
+@import "@mantine/dates/styles.layer.css";
+@import "@mantine/dropzone/styles.layer.css";
+@import "@mantine/carousel/styles.layer.css";
+@import "@mantine/notifications/styles.layer.css";
+:root {
+  --app-bg: #f8fafc;
+  --app-surface: #ffffff;
+  --app-elevated: #ffffff;
+  --app-text: #0f172a;
+  --app-text-secondary: #64748b;
+  --app-text-muted: #94a3b8;
+  --app-border: #e2e8f0;
+  --app-border-light: #f1f5f9;
+  --app-primary: #8b5cf6;
+  --app-primary-light: rgba(139, 92, 246, 0.1);
+  --app-surface-rgb: 255, 255, 255;
+}
+
+[data-mantine-color-scheme="dark"] {
+  --app-bg: #0f172a;
+  --app-surface: #1e293b;
+  --app-elevated: #334155;
+  --app-text: #f8fafc;
+  --app-text-secondary: #94a3b8;
+  --app-text-muted: #64748b;
+  --app-border: #334155;
+  --app-border-light: #1e293b;
+  --app-primary: #8b5cf6;
+  --app-primary-light: rgba(139, 92, 246, 0.1);
+  --app-surface-rgb: 30, 41, 59;
+}
+
+/* ===== Base typography ===== */
+/* Mantine sets its own font-family on :root via --mantine-font-family and
+   reads that everywhere internally. Overriding the variable itself (rather
+   than just html/body) guarantees Inter wins regardless of CSS layer order,
+   since Mantine components consume the variable, not a competing rule. */
+:root,
+[data-mantine-color-scheme] {
+  --mantine-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+html,
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  font-variation-settings: 'opsz' 32;
+  background-color: var(--app-bg);
+  color: var(--app-text);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+#root {
+  background-color: var(--app-bg);
+  min-height: 100vh;
+}
+
+/* ===== Smooth scrolling ===== */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== Selection color ===== */
+::selection {
+  background: rgba(139, 92, 246, 0.2);
+  color: inherit;
+}
+
+/* ===== Focus visible (accessibility) ===== */
+:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
+}
+
+/* ===== Scrollbar styling ===== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--app-text-muted);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--app-text-secondary);
+}
+
+/* ===== Reduced motion support ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+/* ===== Tailwind + Mantine bridge utilities ===== */
+.text-app { color: var(--app-text); }
+.text-app-secondary { color: var(--app-text-secondary); }
+.text-app-muted { color: var(--app-text-muted); }
+
+.bg-app { background-color: var(--app-bg); }
+.bg-app-surface { background-color: var(--app-surface); }
+.bg-app-elevated { background-color: var(--app-elevated); }
+
+.border-app { border-color: var(--app-border); }
+.border-app-light { border-color: var(--app-border-light); }

@@ -41,5 +41,11 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
 
     /** Check if a similar notification already exists (deduplication) */
     boolean existsByUserIdAndTypeAndRelatedEventId(
-            UUID userId, NotificationType type, UUID relatedEventId);
+    UUID userId, NotificationType type, UUID relatedEventId);
+
+    // ✅ New methods for cascading deletion
+    void deleteAllByUserId(UUID userId);
+    void deleteAllByRelatedEventId(UUID eventId);
+
+
 }

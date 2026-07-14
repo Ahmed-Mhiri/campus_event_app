@@ -43,10 +43,13 @@ import de.fhdortmund.mystudyapp.identity.model.TrustLevel;
 import de.fhdortmund.mystudyapp.identity.model.User;
 import de.fhdortmund.mystudyapp.identity.model.VerificationToken;
 import de.fhdortmund.mystudyapp.identity.repository.PasswordResetTokenRepository;
+import de.fhdortmund.mystudyapp.identity.repository.UserPreferenceRepository;
 import de.fhdortmund.mystudyapp.identity.repository.UserRepository;
 import de.fhdortmund.mystudyapp.identity.repository.VerificationTokenRepository;
 import de.fhdortmund.mystudyapp.moderation.repository.ReportRepository;
 import de.fhdortmund.mystudyapp.moderation.repository.ReviewRepository;
+import de.fhdortmund.mystudyapp.moderation.repository.ReviewVoteRepository;
+import de.fhdortmund.mystudyapp.notification.repository.NotificationRepository;
 import de.fhdortmund.mystudyapp.registration.repository.RsvpRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -71,9 +74,12 @@ public class UserService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final RsvpRepository rsvpRepository;
     private final ReportRepository reportRepository;
+    private final UserPreferenceRepository userPreferenceRepository;
 
-    // TTL-based blacklist: token -> revocation timestamp
-    // Tokens older than 7 days are auto-evicted on every check
+    // ✅ NEW: Inject repositories for deep deletion
+    private final NotificationRepository notificationRepository;
+    private final ReviewVoteRepository reviewVoteRepository;
+
     private static final long BLACKLIST_TTL_SECONDS = 604_800; // 7 days
     private final Map<String, Instant> blacklistedTokens = new ConcurrentHashMap<>();
 
@@ -274,7 +280,6 @@ public class UserService {
     }
 
     public boolean isTokenBlacklisted(String token) {
-        // Auto-evict entries older than TTL on every check
         Instant cutoff = Instant.now().minusSeconds(BLACKLIST_TTL_SECONDS);
         blacklistedTokens.entrySet().removeIf(e -> e.getValue().isBefore(cutoff));
         return blacklistedTokens.containsKey(token);
@@ -318,14 +323,21 @@ public class UserService {
         User user = findUserByEmail(email);
         UUID userId = user.getId();
 
+        // 1. Delete physical files
         if (user.getProfileImageUrl() != null) {
             fileStorageService.deleteAvatar(user.getProfileImageUrl());
         }
 
+        // 2. ✅ NEW: Delete isolated user dependencies (Notifications & Votes)
+        notificationRepository.deleteAllByUserId(userId);
+        reviewVoteRepository.deleteAllByUserId(userId);
+
+        // 3. Delete user's active participations
         rsvpRepository.deleteAllByUserId(userId);
         reviewRepository.deleteAllByUserId(userId);
         reportRepository.deleteAllByReporterId(userId);
 
+        // 4. Cleanup hosted events
         List<Event> hostedEvents = eventRepository.findByHostId(userId);
         for (Event event : hostedEvents) {
             UUID eventId = event.getId();
@@ -336,6 +348,9 @@ public class UserService {
                 }
             }
 
+            // ✅ NEW: Delete any notifications linked to this specific event
+            notificationRepository.deleteAllByRelatedEventId(eventId);
+
             rsvpRepository.deleteAllByEventId(eventId);
             reviewRepository.deleteAllByEventId(eventId);
             reportRepository.deleteAllByEventId(eventId);
@@ -343,13 +358,16 @@ public class UserService {
             eventRepository.delete(event);
         }
 
+        // 5. Delete identity & security dependencies
         verificationTokenRepository.deleteAllByUserId(userId);
         passwordResetTokenRepository.deleteAllByUserId(userId);
+        userPreferenceRepository.deleteByUserId(userId);
 
         if (currentToken != null) {
             blacklistedTokens.put(currentToken, Instant.now());
         }
 
+        // 6. Finally, safely delete the user
         userRepository.delete(user);
         SecurityContextHolder.clearContext();
         log.info("Account deleted: {}", user.getId());

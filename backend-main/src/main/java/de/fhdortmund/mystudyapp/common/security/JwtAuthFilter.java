@@ -41,7 +41,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 String email = jwtUtil.getEmailFromToken(jwt);
                 String role = jwtUtil.getRoleFromToken(jwt);
 
-                // NEW: Real-time trust-level check — kills pre-existing tokens for flagged users
                 de.fhdortmund.mystudyapp.identity.model.User user = userRepository.findByUniversityEmail(email).orElse(null);
                 if (user == null || user.getTrustLevel() == TrustLevel.FLAGGED) {
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
@@ -50,7 +49,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         "{\"success\":false,\"message\":\"Account has been flagged. Contact support.\"}"
                     );
                     SecurityContextHolder.clearContext();
-                    return; // Stop the request here
+                    return; 
                 }
 
                 List<SimpleGrantedAuthority> authorities = Collections.singletonList(
@@ -78,16 +77,34 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     private String parseJwt(HttpServletRequest request) {
+        // 1. Try the standard Authorization header first
         String headerAuth = request.getHeader("Authorization");
         if (StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
             return headerAuth.substring(7);
         }
+        
+        // ✅ 2. Fallback to query parameter for browser EventSource (SSE) streams
+        String queryToken = request.getParameter("token");
+        if (StringUtils.hasText(queryToken)) {
+            return queryToken;
+        }
+        
         return null;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+        
         String path = request.getRequestURI();
+        
+        // 👇 FIXED: Do NOT skip filtering if the path is trying to access user profile data
+        if (path.startsWith("/api/auth/me")) {
+            return false;
+        }
+        
         return path.startsWith("/api/auth/") || path.startsWith("/api/public/");
     }
 }

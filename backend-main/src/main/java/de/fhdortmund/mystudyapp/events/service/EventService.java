@@ -170,7 +170,7 @@ public class EventService {
         return eventMapper.toDto(saved, user.getId());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public EventDto getEvent(UUID eventId, String currentUserEmail) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
@@ -210,7 +210,7 @@ public class EventService {
     /**
      * PHASE 2: Get event by slug (public or authenticated).
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public EventDto getEventBySlug(String slug, String currentUserEmail) {
         Event event = eventRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Event", "slug", slug));
@@ -334,9 +334,12 @@ public class EventService {
             event.setSlug(request.getSlug());
         }
 
+        // FIX: Properly update categories without breaking Hibernate's managed collection
         if (request.getCategoryIds() != null) {
+            // Clear the existing managed collection
             event.getEventCategories().clear();
-            Set<EventCategory> categories = request.getCategoryIds().stream()
+            // Build the new set of categories
+            Set<EventCategory> newCategories = request.getCategoryIds().stream()
                     .map(catId -> {
                         Category category = categoryRepository.findById(catId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", catId));
@@ -347,7 +350,8 @@ public class EventService {
                                 .build();
                     })
                     .collect(Collectors.toSet());
-            event.setEventCategories(categories);
+            // Add all new categories to the managed collection (do NOT reassign)
+            event.getEventCategories().addAll(newCategories);
         }
 
         Event updated = eventRepository.save(event);

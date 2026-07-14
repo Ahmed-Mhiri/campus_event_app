@@ -3,7 +3,6 @@ spring:
   servlet:
     multipart:
       enabled: true
-      # Must be >= max video size (20 MB) + margin, otherwise Spring rejects large uploads
       max-file-size: 25MB
       max-request-size: 25MB
   
@@ -22,7 +21,6 @@ spring:
     password: ${POSTGRES_PASSWORD:changeme-strong-password-here}
     driver-class-name: org.postgresql.Driver
   
-  # Gmail SMTP Configuration
   mail:
     host: smtp.gmail.com
     port: 587
@@ -35,7 +33,6 @@ spring:
       mail.smtp.timeout: 5000
       mail.smtp.writetimeout: 5000
 
-# Logging
 logging:
   level:
     de.fhdortmund.mystudyapp: DEBUG
@@ -43,7 +40,6 @@ logging:
     org.hibernate.orm.jdbc.bind: TRACE
     org.springframework.mail: DEBUG
 
-# JWT
 jwt:
   secret: ${JWT_SECRET:changeme-changeme-changeme-changeme-changeme-changeme-chang}
   access:
@@ -51,7 +47,6 @@ jwt:
   refresh:
     expiration-ms: 604800000
 
-# MQTT
 mqtt:
   broker-url: tcp://${MQTT_HOST:localhost}:1883
   client-id: backend-main-subscriber
@@ -59,15 +54,15 @@ mqtt:
     events: mystudyapp/events
     alerts: mystudyapp/alerts
 
-# Application Storage Configuration
 app:
   storage:
-    # Base directory. FileStorageService appends /avatars and /events automatically.
     avatar-location: uploads
     event-media-location: uploads
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
   mail:
     from: ${MAIL_FROM:noreply@mystudyapp.de}
+  seeder:
+    force-clear: true   # ✅ Keep your real accounts alive after restart
 
 server:
   port: ${SERVER_PORT:8081}

@@ -30,6 +30,9 @@ public class EventDto {
     /** Current user's RSVP status for this event (null if not registered) */
     private RsvpStatus myRsvpStatus;
 
+    /** Indicates if the event is in the soft‑deleted state (Trash Bin) */
+    private boolean deleted; // ✅ ADDED
+
     /* ==================== PHASE 2 ADDITIONS ==================== */
 
     /** Human-readable URL slug for sharing */
