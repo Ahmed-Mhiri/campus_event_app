@@ -1,8 +1,8 @@
 # 🚀 MyStudyApp Frontend Development Guide  
 ## Based 100% on the Official Backend Implementation
 
-> **Version**: 2.0 | **Date**: 2026-07-14  
-> **Backend**: Spring Boot (Java)
+> **Version**: 2.1 | **Date**: 2026-07-15  
+> **Backend**: Spring Boot (Java)  
 > **Base URL**: `http://localhost:8080`  
 > **Auth**: JWT Bearer Token (access + refresh)  
 
@@ -18,7 +18,7 @@
 6. [Real‑Time SSE](#6-real‑time-sse)  
 7. [Module 1: Authentication](#module-1-authentication)  
 8. [Module 2: User Profiles & Preferences](#module-2-user-profiles--preferences)  
-9. [Module 3: Events](#module-3-events)  
+9. [Module 3: Events](#module-3-events) *(includes address & weather fields)*  
 10. [Module 4: RSVPs & Waitlist](#module-4-rsvps--waitlist)  
 11. [Module 5: Reviews](#module-5-reviews)  
 12. [Module 6: Reports (Moderation)](#module-6-reports-moderation)  
@@ -26,11 +26,12 @@
 14. [Module 8: Search](#module-8-search)  
 15. [Module 9: Admin Dashboard](#module-9-admin-dashboard)  
 16. [Module 10: Public Pages](#module-10-public-pages)  
-17. [TypeScript Types](#17-typescript-types)  
-18. [UI/UX Guidelines](#18-uiux-guidelines)  
-19. [Frontend State Management (Zustand)](#19-frontend-state-management-zustand)  
-20. [Environment Variables](#20-environment-variables)  
-21. [Development Checklist](#21-development-checklist)  
+17. [Module 11: Weather & Risk (NEW)](#module-11-weather--risk)  
+18. [TypeScript Types](#18-typescript-types)  
+19. [UI/UX Guidelines](#19-uiux-guidelines)  
+20. [Frontend State Management (Zustand)](#20-frontend-state-management-zustand)  
+21. [Environment Variables](#21-environment-variables)  
+22. [Development Checklist](#22-development-checklist)  
 
 ---
 
@@ -38,13 +39,14 @@
 
 MyStudyApp is a campus event platform. The backend is a **Spring Boot** monolith with clear domain modules. The frontend consumes a REST API with JWT authentication and receives real‑time updates via **Server‑Sent Events (SSE)**.
 
-**Key backend modules** (from `extracted_all_java.txt`):
+**Key backend modules** (from source code):
 - `common` – config, security, exceptions, response wrappers.
-- `events` – event CRUD, categories, media, search, SSE.
+- `events` – event CRUD, categories, media, search, SSE, **weather integration**.
 - `identity` – auth, users, profiles, trust levels, preferences.
 - `moderation` – reviews, reports, helpful votes.
 - `notification` – in‑app notifications (event‑driven).
 - `registration` – RSVPs, waitlist, check‑in.
+- `weather` – (new) external weather data ingestion and risk engine.
 
 **Communication patterns**:
 - REST over HTTP with JSON payloads.
@@ -455,6 +457,8 @@ interface PublicProfileDto {
 
 ## Module 3: Events
 
+**This module now includes address fields and automatically computed weather data.**
+
 ### 3.1 Event Status Lifecycle
 
 ```
@@ -472,14 +476,16 @@ DRAFT → UNDER_REVIEW → PUBLISHED → COMPLETED (auto)
 
 ### 3.2 Event DTOs
 
-**`EventDto`**:
+**`EventDto`** (updated with address & weather fields):
+
 ```typescript
 interface EventDto {
+  // Core fields
   id: string;
   host: HostDto;
   title: string;
   description: string | null;
-  location: string;
+  location: string;                // legacy display field
   startTime: string;
   endTime: string;
   maxCapacity: number;
@@ -488,16 +494,33 @@ interface EventDto {
   categories: CategoryDto[];
   media: EventMediaDto[];
   createdAt: string;
-  isHost: boolean;                 // true if current user is host
-  myRsvpStatus: RsvpStatus | null; // null if not registered
+  isHost: boolean;
+  myRsvpStatus: RsvpStatus | null;
   slug: string;
   viewCount: number;
   cancellationReason: string | null;
-  deleted: boolean;                // true if soft-deleted
+  deleted: boolean;
+
+  // NEW address fields (provided by host)
+  venueName: string | null;
+  street: string | null;
+  city: string | null;
+  postalCode: string | null;
+  country: string | null;          // default "DE"
+  latitude: number | null;
+  longitude: number | null;
+  isOutdoor: boolean;
+
+  // NEW weather & risk fields (auto‑populated for outdoor events within 14 days)
+  weatherRisk: WeatherRisk | null;     // "GOOD" | "MODERATE" | "DANGER" | "CANCELLED"
+  weatherRecommendation: string | null;
+  weatherTemperature: number | null;   // °C
+  weatherRainProbability: number | null; // 0‑100
+  weatherAvailable: boolean | null;    // true if forecast exists
 }
 ```
 
-**`HostDto`**:
+**`HostDto`** (unchanged):
 ```typescript
 interface HostDto {
   id: string;
@@ -510,26 +533,26 @@ interface HostDto {
 }
 ```
 
-**`EventMediaDto`**:
+**`EventMediaDto`** (unchanged):
 ```typescript
 interface EventMediaDto {
   id: string;
   url: string;
   mediaType: "IMAGE" | "VIDEO";
   filename: string;
-  thumbnailUrl: string | null;    // 400×300
-  mediumUrl: string | null;       // 800×600
+  thumbnailUrl: string | null;
+  mediumUrl: string | null;
   displayOrder: number;
 }
 ```
 
-**`CategoryDto`**:
+**`CategoryDto`** (unchanged):
 ```typescript
 interface CategoryDto {
   id: number;
   name: string;
-  icon: string | null;    // e.g., "music"
-  color: string | null;   // hex, e.g., "#FF5733"
+  icon: string | null;
+  color: string | null;
   sortOrder: number;
 }
 ```
@@ -538,25 +561,39 @@ interface CategoryDto {
 
 `POST /api/events` (or `/api/events/draft` for draft)
 
-**Body** (`CreateEventRequest`):
+**Body** (`CreateEventRequest` – updated):
+
 ```typescript
-{
-  title: string;           // required, 3‑100 chars
-  description?: string;    // max 2000
-  location: string;        // required, max 200
-  startTime: string;       // ISO 8601
-  endTime: string;         // ISO 8601, must be after start
-  maxCapacity: number;     // min 1
-  categoryIds?: number[];  // optional
-  slug?: string;           // optional, max 150
+interface CreateEventRequest {
+  title: string;                     // required, 3‑100 chars
+  description?: string;              // max 2000
+  location: string;                  // required, max 200 (legacy display)
+  startTime: string;                 // ISO
+  endTime: string;                   // ISO
+  maxCapacity: number;               // min 1
+  categoryIds?: number[];
+  slug?: string;                     // optional
+
+  // NEW address & outdoor flag
+  venueName?: string;                // max 255
+  street?: string;                   // max 255
+  city?: string;                     // max 100
+  postalCode?: string;               // max 20
+  country?: string;                  // default "DE", max 2
+  isOutdoor?: boolean;               // default false
 }
 ```
+
+**Geocoding behaviour**:  
+If `isOutdoor` is `true` and `city` is provided, the backend automatically geocodes the address (via OpenStreetMap Nominatim) and stores `latitude`/`longitude`. If geocoding fails, the event is still saved but `latitude`/`longitude` remain `null`.
+
+**Draft behaviour**: Address fields and `isOutdoor` are accepted and stored, and geocoding still runs if `isOutdoor` and `city` are provided.
 
 **Validation**:
 - For normal create: `startTime` must be in future, `endTime` > `startTime`.
 - For draft: these checks are skipped (draft can hold partial data).
 
-**Response**: `ApiResponse<EventDto>`.
+**Response**: `ApiResponse<EventDto>` (with weather fields filled if applicable).
 
 ---
 
@@ -636,7 +673,7 @@ Only host or admin; must be soft‑deleted first (unless admin). Deletes all med
 - **Authenticated**: `GET /api/events/{eventId}` or `GET /api/events/by-slug/{slug}`
 - **Public**: `GET /api/public/events/{eventId}` or `GET /api/public/events/slug/{slug}`
 
-Both return `ApiResponse<EventDto>`.
+Both return `ApiResponse<EventDto>` (with weather data if applicable).
 
 **View count** increments automatically for published events.
 
@@ -660,7 +697,7 @@ Both return `ApiResponse<EventDto>`.
 }
 ```
 
-**Response**: `PageResponse<EventDto>`.
+**Response**: `PageResponse<EventDto>` (each event includes weather fields if applicable).
 
 **Featured events** (landing page): `GET /api/public/events/featured` returns next 6.
 
@@ -1165,7 +1202,7 @@ All endpoints in this section require **no authentication**.
 
 `GET /api/public/events/{eventId}` or `GET /api/public/events/slug/{slug}`
 
-Returns `EventDto` with `myRsvpStatus=null` and `isHost=false`.
+Returns `EventDto` with `myRsvpStatus=null`, `isHost=false`, but **weather fields** are still populated if applicable.
 
 ### 10.4 Categories
 
@@ -1177,7 +1214,47 @@ Returns `EventDto` with `myRsvpStatus=null` and `isHost=false`.
 
 ---
 
-## 17. TypeScript Types
+## 🆕 Module 11: Weather & Risk
+
+This module is **not** a separate set of endpoints, but rather a **data enhancement** automatically attached to `EventDto` for outdoor events within the next 14 days. The backend fetches weather forecasts from an external system (`backend-weather`) via MQTT and stores them in the `city_weather` table. When an event is retrieved, the risk engine evaluates the forecast and returns the fields below.
+
+### 11.1 WeatherRisk Enum
+
+```typescript
+type WeatherRisk = "GOOD" | "MODERATE" | "DANGER" | "CANCELLED";
+```
+
+| Risk Level | Meaning | UI Colour |
+|------------|---------|-----------|
+| `GOOD` | No severe conditions | Green |
+| `MODERATE` | Some discomfort – backup plan recommended | Yellow/Amber |
+| `DANGER` | Severe conditions – strongly recommend postponing or moving indoors | Red |
+| `CANCELLED` | Extreme weather warning – event should be cancelled | Dark red (pulsing) |
+
+### 11.2 Fields in EventDto
+
+- `weatherRisk` – the overall risk level.
+- `weatherRecommendation` – a human‑readable string (e.g., *"Heavy rain (>70%) – consider moving indoors or postponing."*).
+- `weatherTemperature` – maximum temperature for that day (°C).
+- `weatherRainProbability` – precipitation probability (0‑100).
+- `weatherAvailable` – `true` if a forecast exists; `false` if the event date is >14 days away or the city is not in the weather system.
+
+### 11.3 How to Use in Frontend
+
+**Event Cards (Feed)** – display a small badge if `isOutdoor` and `weatherAvailable`:
+```
+☀️ 24°C   or   🌧️ 16°C
+```
+
+**Event Detail Page** – show a prominent banner using `weatherRisk` to set colour and icon, and display `weatherRecommendation` as the message. Optionally show temperature and rain probability.
+
+**Outdoor Event Creation** – the host toggles the `isOutdoor` switch and fills in the address fields. The backend geocodes and stores the coordinates, so no extra steps are required.
+
+**Dynamic Updates**: The risk may change when new weather data arrives (every 6 hours). The frontend should re‑fetch the event data periodically (or use a webhook/polling) to reflect updated risks. The backend does **not** currently push weather updates via SSE, so a simple refresh or re‑fetch is recommended.
+
+---
+
+## 18. TypeScript Types (Updated)
 
 ### Enums
 
@@ -1193,6 +1270,7 @@ enum NotificationType {
   EVENT_APPROVED, EVENT_REJECTED, WAITLIST_PROMOTED, NEW_REVIEW,
   TRUST_PROMOTED, EVENT_CANCELLED, RSVP_CANCELLED, REPORT_RESOLVED
 }
+enum WeatherRisk { GOOD, MODERATE, DANGER, CANCELLED }
 ```
 
 ### API Response Wrappers
@@ -1230,10 +1308,15 @@ interface LoginRequest { universityEmail, password }
 interface RegisterRequest { universityEmail, password, displayName }
 interface AuthResponse { accessToken, refreshToken, tokenType, expiresIn, user }
 
-// Events
-interface CreateEventRequest { title, description?, location, startTime, endTime, maxCapacity, categoryIds?, slug? }
+// Events (UPDATED)
+interface CreateEventRequest { title, description?, location, startTime, endTime, maxCapacity, categoryIds?, slug?, venueName?, street?, city?, postalCode?, country?, isOutdoor? }
 interface CancelEventRequest { reason? }
-interface EventDto { id, host, title, description, location, startTime, endTime, maxCapacity, currentRsvpCount, status, categories, media, createdAt, isHost, myRsvpStatus, slug, viewCount, cancellationReason, deleted }
+interface EventDto {
+  id, host, title, description, location, startTime, endTime, maxCapacity, currentRsvpCount,
+  status, categories, media, createdAt, isHost, myRsvpStatus, slug, viewCount, cancellationReason, deleted,
+  venueName, street, city, postalCode, country, latitude, longitude, isOutdoor,
+  weatherRisk, weatherRecommendation, weatherTemperature, weatherRainProbability, weatherAvailable
+}
 interface HostDto { id, displayName, profileImageUrl, trustLevel, averageHostRating, totalHostReviews, completedEventsWithReviews }
 interface EventMediaDto { id, url, mediaType, filename, thumbnailUrl, mediumUrl, displayOrder }
 interface CategoryDto { id, name, icon, color, sortOrder }
@@ -1269,7 +1352,7 @@ interface SearchSuggestionDto { type, value, id, subtitle }
 
 ---
 
-## 18. UI/UX Guidelines
+## 19. UI/UX Guidelines (Updated)
 
 ### Design Principles
 - **Mobile‑first** – students primarily use phones.
@@ -1280,7 +1363,7 @@ interface SearchSuggestionDto { type, value, id, subtitle }
 
 ### Component Patterns
 
-**Event Card**:
+**Event Card** (updated to include weather badge):
 ```
 ┌─────────────────────────────────────┐
 │ [Thumbnail 400×300]                 │
@@ -1290,6 +1373,7 @@ interface SearchSuggestionDto { type, value, id, subtitle }
 │ [Category] [Category]               │
 │ 👥 12/50 spots remaining            │
 │ [REGISTER] / [JOIN WAITLIST]        │
+│ 🌤️ 22°C (if outdoor & weather)      │
 └─────────────────────────────────────┘
 ```
 
@@ -1345,9 +1429,74 @@ interface SearchSuggestionDto { type, value, id, subtitle }
 - Lazy load using `IntersectionObserver`.
 - Show skeleton placeholders.
 
+### Additional Weather‑Specific UI
+
+#### Address Inputs
+Replace the single “Location” text field with a dedicated address block:
+
+- **Venue Name** – free text, e.g., “Westfalenpark”
+- **Street** – e.g., “Emil-Figge-Straße 50”
+- **City** – required if outdoor
+- **Postal Code** – optional
+- **Country** – default “DE”
+
+#### Outdoor Toggle
+Place a sleek switch/checkbox next to the date/time pickers:  
+`[ 🌲 This is an outdoor event ]`  
+When toggled, the address fields become mandatory (or at least city is required for geocoding). The UI can show a small note: *“We’ll check the weather for you!”*.
+
+#### Weather Badge on Cards
+For `EventCard.tsx`:
+- If `isOutdoor === true` and `weatherAvailable === true`, display a mini badge in the corner or next to the date.
+- Use icons: `☀️` for good, `🌤️` for moderate, `⚠️` for danger, `⛈️` for cancelled.
+- Show temperature (if available) e.g., `☀️ 24°C`.
+
+#### Risk Banner on Detail Page
+For `EventDetailPage.tsx`, render a full‑width banner below the title:
+
+| Risk | Background Colour | Icon | Example Text |
+|------|-------------------|------|--------------|
+| GOOD | `#e6f7e6` (light green) | ☀️ | *“24°C – Perfect weather for your event!”* |
+| MODERATE | `#fff3cd` (yellow) | 🌂 | *“14°C – Moderate rain expected. Consider bringing an umbrella or having a backup plan.”* |
+| DANGER | `#f8d7da` (light red) | ⚠️ | *“32°C – Warning: Extreme heat. Please stay hydrated and seek shade.”* |
+| CANCELLED | `#dc3545` (dark red, pulsing animation) | ⛈️ | *“Severe Thunderstorm Warning. We strongly recommend the host postpones this event.”* |
+
+If `weatherAvailable === false`, show a neutral message: *“Forecast not yet available (check 14 days in advance).”*
+
+### Accessibility & Polish
+- Ensure colour contrast for the risk levels (e.g., dark text on light backgrounds).
+- Provide tooltips explaining the risk logic if needed.
+- Keep the UI clean – don’t overwhelm the user with raw numbers; show only the most important information.
+
+### Example Component Structure (Weather)
+
+```tsx
+// EventCard.tsx
+{event.isOutdoor && event.weatherAvailable && (
+  <div className="weather-badge">
+    {event.weatherTemperature}°C
+    {event.weatherRisk === 'GOOD' && '☀️'}
+    {event.weatherRisk === 'MODERATE' && '🌤️'}
+    {event.weatherRisk === 'DANGER' && '⚠️'}
+    {event.weatherRisk === 'CANCELLED' && '⛈️'}
+  </div>
+)}
+
+// EventDetailPage.tsx
+{event.isOutdoor && event.weatherAvailable && (
+  <div className={`weather-banner risk-${event.weatherRisk?.toLowerCase()}`}>
+    <div className="banner-icon">{getRiskIcon(event.weatherRisk)}</div>
+    <div className="banner-content">
+      <div className="banner-temperature">{event.weatherTemperature}°C</div>
+      <div className="banner-recommendation">{event.weatherRecommendation}</div>
+    </div>
+  </div>
+)}
+```
+
 ---
 
-## 19. Frontend State Management (Zustand)
+## 20. Frontend State Management (Zustand)
 
 ### Recommended Store Structure
 
@@ -1462,7 +1611,7 @@ export const useEventSse = (eventId: string | null) => {
 
 ---
 
-## 20. Environment Variables
+## 21. Environment Variables
 
 ```bash
 # .env
@@ -1474,15 +1623,15 @@ VITE_DEFAULT_TIMEZONE=Europe/Berlin
 
 ---
 
-## 21. Development Checklist
+## 22. Development Checklist (Updated)
 
 ### Phase 1: Core (MVP)
 - [ ] Authentication (register, login, logout, refresh)
 - [ ] Email verification flow
 - [ ] Password reset flow
-- [ ] Event creation (with draft)
+- [ ] Event creation with **structured address and outdoor toggle**
 - [ ] Event feed (public + authenticated)
-- [ ] Event detail page
+- [ ] Event detail page with **weather banner**
 - [ ] RSVP system (GOING/WAITLISTED)
 - [ ] Basic profile page
 - [ ] Notification system (list, mark read)
@@ -1497,6 +1646,7 @@ VITE_DEFAULT_TIMEZONE=Europe/Berlin
 - [ ] Waitlist management (host promote)
 - [ ] Review system (create, list, helpful vote)
 - [ ] User preferences
+- [ ] **Display weather badges on event cards**
 
 ### Phase 3: Polish & Admin
 - [ ] Helpful votes and review reporting
@@ -1507,7 +1657,8 @@ VITE_DEFAULT_TIMEZONE=Europe/Berlin
 - [ ] Admin category management
 - [ ] Real‑time SSE integration
 - [ ] Advanced notifications with deep‑linking
+- [ ] **Periodic re‑fetch of event details to update weather risk**
 
 ---
 
-*This guide is generated directly from the backend source code. All endpoints, DTOs, validation rules, and business logic reflect the actual implementation as of July 2026.*
+*This guide reflects the full backend implementation including the new weather and risk features. All endpoints, DTOs, and validation rules are derived directly from the source code.*

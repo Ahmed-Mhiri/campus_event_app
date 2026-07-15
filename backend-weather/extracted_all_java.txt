@@ -1,0 +1,352 @@
+﻿=== src\main\java\de\fhdortmund\weather\WeatherApplication.java ===
+package de.fhdortmund.weather;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
+
+@SpringBootApplication
+@EnableScheduling
+public class WeatherApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(WeatherApplication.class, args);
+    }
+}
+=== src\main\java\de\fhdortmund\weather\config\CityList.java ===
+package de.fhdortmund.weather.config;
+
+import java.util.Map;
+
+public class CityList {
+    public static final Map<String, double[]> CITIES = Map.ofEntries(
+        // Major cities & state capitals
+        Map.entry("Berlin", new double[]{52.5200, 13.4050}),
+        Map.entry("Hamburg", new double[]{53.5511, 9.9937}),
+        Map.entry("Munich", new double[]{48.1351, 11.5820}),
+        Map.entry("Cologne", new double[]{50.9375, 6.9603}),
+        Map.entry("Frankfurt", new double[]{50.1109, 8.6821}),
+        Map.entry("Stuttgart", new double[]{48.7758, 9.1829}),
+        Map.entry("DÃ¼sseldorf", new double[]{51.2277, 6.7735}),
+        Map.entry("Leipzig", new double[]{51.3397, 12.3731}),
+        Map.entry("Dortmund", new double[]{51.5136, 7.4653}),
+        Map.entry("Essen", new double[]{51.4556, 7.0116}),
+        Map.entry("Bremen", new double[]{53.0793, 8.8017}),
+        Map.entry("Dresden", new double[]{51.0504, 13.7373}),
+        Map.entry("Hanover", new double[]{52.3759, 9.7320}),
+        Map.entry("Nuremberg", new double[]{49.4521, 11.0767}),
+        Map.entry("Duisburg", new double[]{51.4344, 6.7623}),
+        Map.entry("Bochum", new double[]{51.4818, 7.2197}),
+        Map.entry("Wuppertal", new double[]{51.2562, 7.1508}),
+        Map.entry("Bielefeld", new double[]{52.0302, 8.5325}),
+        Map.entry("Bonn", new double[]{50.7374, 7.0982}),
+        Map.entry("MÃ¼nster", new double[]{51.9607, 7.6261}),
+        Map.entry("Mannheim", new double[]{49.4875, 8.4660}),
+        Map.entry("Karlsruhe", new double[]{49.0069, 8.4037}),
+        Map.entry("Wiesbaden", new double[]{50.0826, 8.2413}),
+        Map.entry("Gelsenkirchen", new double[]{51.5177, 7.0857}),
+        Map.entry("Aachen", new double[]{50.7753, 6.0839}),
+        Map.entry("MÃ¶nchengladbach", new double[]{51.1805, 6.4428}),
+        Map.entry("Augsburg", new double[]{48.3705, 10.8978}),
+        Map.entry("Krefeld", new double[]{51.3388, 6.5853}),
+        Map.entry("Halle", new double[]{51.4969, 11.9688}),
+        Map.entry("Braunschweig", new double[]{52.2689, 10.5268}),
+        Map.entry("Kiel", new double[]{54.3233, 10.1228}),
+        Map.entry("Magdeburg", new double[]{52.1205, 11.6276}),
+        Map.entry("Oberhausen", new double[]{51.4982, 6.8518}),
+        Map.entry("LÃ¼beck", new double[]{53.8655, 10.6856}),
+        Map.entry("Freiburg", new double[]{47.9990, 7.8421}),
+        Map.entry("Erfurt", new double[]{50.9848, 11.0299}),
+        Map.entry("Rostock", new double[]{54.0924, 12.0991}),
+        Map.entry("Mainz", new double[]{50.0012, 8.2763}),
+        Map.entry("Kassel", new double[]{51.3137, 9.4797}),
+        Map.entry("Hagen", new double[]{51.3608, 7.4740}),
+        Map.entry("Hamm", new double[]{51.6803, 7.8209}),
+        Map.entry("SaarbrÃ¼cken", new double[]{49.2402, 6.9969}),
+        Map.entry("MÃ¼lheim", new double[]{51.4247, 6.8815}),
+        Map.entry("Potsdam", new double[]{52.3906, 13.0645}),
+        Map.entry("Ludwigshafen", new double[]{49.4818, 8.4354}),
+        Map.entry("Oldenburg", new double[]{53.1397, 8.2135}),
+        Map.entry("Leverkusen", new double[]{51.0325, 6.9881}),
+        Map.entry("OsnabrÃ¼ck", new double[]{52.2799, 8.0472}),
+        Map.entry("Solingen", new double[]{51.1714, 7.0845}),
+        Map.entry("Heidelberg", new double[]{49.3988, 8.6724}),
+        Map.entry("Herne", new double[]{51.5421, 7.2189}),
+        Map.entry("Neuss", new double[]{51.1980, 6.6940}),
+        Map.entry("Darmstadt", new double[]{49.8728, 8.6512}),
+        Map.entry("Paderborn", new double[]{51.7189, 8.7575}),
+        Map.entry("Regensburg", new double[]{49.0134, 12.1016}),
+        Map.entry("Ingolstadt", new double[]{48.7665, 11.4255}),
+        Map.entry("WÃ¼rzburg", new double[]{49.7913, 9.9534}),
+        Map.entry("FÃ¼rth", new double[]{49.4772, 10.9886}),
+        Map.entry("Wolfsburg", new double[]{52.4233, 10.7823}),
+        Map.entry("GÃ¶ttingen", new double[]{51.5417, 9.9154}),
+        Map.entry("Koblenz", new double[]{50.3531, 7.5950}),
+        Map.entry("Trier", new double[]{49.7596, 6.6418}),
+        Map.entry("Jena", new double[]{50.9271, 11.5892}),
+        Map.entry("Gera", new double[]{50.8803, 12.0810}),
+        Map.entry("Hildesheim", new double[]{52.1506, 9.9510}),
+        Map.entry("Cottbus", new double[]{51.7567, 14.3357}),
+        Map.entry("Zwickau", new double[]{50.7185, 12.4964}),
+        Map.entry("Schwerin", new double[]{53.6297, 11.4130}),
+        Map.entry("Esslingen", new double[]{48.7433, 9.3168}),
+        Map.entry("Flensburg", new double[]{54.7833, 9.4333}),
+        Map.entry("Bremerhaven", new double[]{53.5500, 8.5833}),
+        Map.entry("Wilhelmshaven", new double[]{53.5167, 8.1333}),
+        Map.entry("LÃ¼neburg", new double[]{53.2500, 10.4000}),
+        Map.entry("Celle", new double[]{52.6167, 10.0833}),
+        Map.entry("Delmenhorst", new double[]{53.0500, 8.6333}),
+        Map.entry("Villingen-Schwenningen", new double[]{48.0667, 8.4500}),
+        Map.entry("Sindelfingen", new double[]{48.7167, 9.0000}),
+        Map.entry("Reutlingen", new double[]{48.4833, 9.2167}),
+        Map.entry("Pforzheim", new double[]{48.8833, 8.7000}),
+        Map.entry("Heilbronn", new double[]{49.1500, 9.2167}),
+        Map.entry("Ulm", new double[]{48.4000, 9.9833}),
+        Map.entry("Neu-Ulm", new double[]{48.3833, 10.0000}),
+        Map.entry("Rosenheim", new double[]{47.8500, 12.1167}),
+        Map.entry("Passau", new double[]{48.5667, 13.4333}),
+        Map.entry("Landshut", new double[]{48.5333, 12.1500}),
+        Map.entry("Bayreuth", new double[]{49.9500, 11.5667}),
+        Map.entry("Bamberg", new double[]{49.8833, 10.8833}),
+        Map.entry("Aschaffenburg", new double[]{49.9667, 9.1500}),
+        Map.entry("Darmstadt", new double[]{49.8728, 8.6512}),
+        Map.entry("Marburg", new double[]{50.8000, 8.7667}),
+        Map.entry("GieÃŸen", new double[]{50.5833, 8.6667}),
+        Map.entry("Kaiserslautern", new double[]{49.4500, 7.7500}),
+        Map.entry("Worms", new double[]{49.6333, 8.3500}),
+        Map.entry("Speyer", new double[]{49.3167, 8.4333}),
+        Map.entry("Frankfurt (Oder)", new double[]{52.3500, 14.5500}),
+        Map.entry("Eisenach", new double[]{50.9833, 10.3167}),
+        Map.entry("Weimar", new double[]{50.9833, 11.3167}),
+        Map.entry("Nordhausen", new double[]{51.5000, 10.7833}),
+        Map.entry("Suhl", new double[]{50.6000, 10.6833}),
+        Map.entry("Merseburg", new double[]{51.3500, 11.9833}),
+        Map.entry("Dessau", new double[]{51.8333, 12.2333})
+    );
+}
+=== src\main\java\de\fhdortmund\weather\config\MqttPublisherConfig.java ===
+package de.fhdortmund.weather.config;
+
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.integration.annotation.ServiceActivator;
+import org.springframework.integration.channel.DirectChannel;
+import org.springframework.integration.mqtt.core.DefaultMqttPahoClientFactory;
+import org.springframework.integration.mqtt.outbound.MqttPahoMessageHandler;
+import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.MessageHandler;
+
+@Configuration
+public class MqttPublisherConfig {
+
+    @Value("${mqtt.broker-url:tcp://localhost:1883}")
+    private String brokerUrl;
+
+    @Value("${mqtt.client-id:weather-publisher}")
+    private String clientId;
+
+    @Value("${mqtt.topic.weather:campus/weather}")
+    private String weatherTopic;
+
+    @Bean
+    public DefaultMqttPahoClientFactory mqttClientFactory() {
+        DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
+        MqttConnectOptions options = new MqttConnectOptions();
+        options.setServerURIs(new String[]{brokerUrl});
+        options.setCleanSession(true);
+        options.setAutomaticReconnect(true);
+        factory.setConnectionOptions(options);
+        return factory;
+    }
+
+    @Bean
+    public MessageChannel mqttWeatherOutboundChannel() {
+        return new DirectChannel();
+    }
+
+    @Bean
+    @ServiceActivator(inputChannel = "mqttWeatherOutboundChannel")
+    public MessageHandler mqttWeatherOutboundHandler() {
+        MqttPahoMessageHandler handler = new MqttPahoMessageHandler(
+                clientId,
+                mqttClientFactory()
+        );
+        handler.setAsync(true);
+        handler.setDefaultTopic(weatherTopic);
+        handler.setDefaultQos(1);
+        return handler;
+    }
+}
+=== src\main\java\de\fhdortmund\weather\dto\CityForecast.java ===
+package de.fhdortmund.mystudyapp.weather.dto;
+
+import java.time.LocalDate;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class CityForecast {
+    private String city;
+    private LocalDate date;
+    private Integer conditionCode;   // WMO weather code
+    private Integer tempMax;         // Â°C
+    private Integer rainProbability; // 0-100
+    private Integer windSpeed;       // km/h
+}
+=== src\main\java\de\fhdortmund\weather\dto\WeatherPayload.java ===
+package de.fhdortmund.mystudyapp.weather.dto;
+
+import java.time.Instant;
+import java.util.List;
+
+import lombok.Data;
+
+@Data
+public class WeatherPayload {
+    private Instant timestamp;
+    private List<CityForecast> forecasts;
+}
+=== src\main\java\de\fhdortmund\weather\service\MqttPublisher.java ===
+package de.fhdortmund.weather.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import de.fhdortmund.weather.dto.CityForecast;      // âœ… correct
+import de.fhdortmund.weather.dto.WeatherPayload;    // âœ… correct
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.integration.annotation.MessagingGateway;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.List;
+
+@Component
+@Slf4j
+@RequiredArgsConstructor
+public class MqttPublisher {
+
+    @MessagingGateway(defaultRequestChannel = "mqttWeatherOutboundChannel")
+    public interface WeatherMqttGateway {
+        void sendWeather(String payload);
+    }
+
+    private final WeatherMqttGateway gateway;
+    private final ObjectMapper objectMapper;
+
+    public void publishForecasts(List<CityForecast> forecasts) {
+        try {
+            WeatherPayload payload = new WeatherPayload();
+            payload.setTimestamp(Instant.now());
+            payload.setForecasts(forecasts);
+            String json = objectMapper.writeValueAsString(payload);
+            gateway.sendWeather(json);
+            log.info("Published weather forecasts for {} city-days", forecasts.size());
+        } catch (Exception e) {
+            log.error("Failed to publish weather", e);
+        }
+    }
+}
+=== src\main\java\de\fhdortmund\weather\service\WeatherFetcher.java ===
+package de.fhdortmund.weather.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import de.fhdortmund.weather.config.CityList;          // âœ… correct
+import de.fhdortmund.weather.dto.CityForecast;        // âœ… correct
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class WeatherFetcher {
+
+    private final MqttPublisher mqttPublisher;
+    private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static final String OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast";
+
+    @Scheduled(cron = "0 0 */6 * * *")
+    public void fetchAndPublish() {
+        List<CityForecast> allForecasts = new ArrayList<>();
+
+        for (Map.Entry<String, double[]> entry : CityList.CITIES.entrySet()) {
+            String city = entry.getKey();
+            double lat = entry.getValue()[0];
+            double lon = entry.getValue()[1];
+
+            String url = UriComponentsBuilder.fromHttpUrl(OPEN_METEO_URL)
+                    .queryParam("latitude", lat)
+                    .queryParam("longitude", lon)
+                    .queryParam("daily", "weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,windspeed_10m_max")
+                    .queryParam("timezone", "Europe/Berlin")
+                    .queryParam("forecast_days", 14)
+                    .build().toUriString();
+
+            try {
+                JsonNode response = restTemplate.getForObject(url, JsonNode.class);
+                if (response == null) continue;
+                JsonNode daily = response.get("daily");
+                JsonNode times = daily.get("time");
+
+                for (int i = 0; i < times.size(); i++) {
+                    CityForecast cf = new CityForecast();
+                    cf.setCity(city);
+                    cf.setDate(LocalDate.parse(times.get(i).asText()));
+                    cf.setConditionCode(daily.get("weathercode").get(i).asInt());
+                    cf.setTempMax((int) daily.get("temperature_2m_max").get(i).asDouble());
+                    cf.setRainProbability(daily.get("precipitation_probability_max").get(i).asInt());
+                    cf.setWindSpeed((int) daily.get("windspeed_10m_max").get(i).asDouble());
+                    allForecasts.add(cf);
+                }
+            } catch (Exception e) {
+                log.error("Failed to fetch weather for {}: {}", city, e.getMessage());
+            }
+        }
+
+        if (!allForecasts.isEmpty()) {
+            mqttPublisher.publishForecasts(allForecasts);
+        }
+    }
+}
+=== src\test\java\de\fhdortmund\backend_weather\BackendWeatherApplicationTests.java ===
+package de.fhdortmund.backend_weather;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class BackendWeatherApplicationTests {
+
+	@Test
+	void contextLoads() {
+	}
+
+}
+=== src\test\java\de\fhdortmund\weather\BackendWeatherApplicationTests.java ===
+package de.fhdortmund.weather;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class BackendWeatherApplicationTests {
+    @Test
+    void contextLoads() {
+    }
+}

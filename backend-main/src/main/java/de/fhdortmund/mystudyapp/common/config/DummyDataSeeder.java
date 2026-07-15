@@ -66,8 +66,6 @@ public class DummyDataSeeder implements CommandLineRunner {
     private final VerificationTokenRepository verificationTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordEncoder passwordEncoder;
-
-    // NEW: inject ReportRepository to clear reports before events
     private final ReportRepository reportRepository;
 
     @Value("${app.seeder.force-clear:true}")
@@ -75,7 +73,7 @@ public class DummyDataSeeder implements CommandLineRunner {
 
     private final Random random = new Random(42L);
 
-    // ----- Expanded static data pools (all names unique) -----
+    // ----- Static data pools -----
     private static final List<String> EVENT_TITLES = Arrays.asList(
         "Agile Workshop: Scrum Mastery", "Hackathon: Build a Startup in 48h",
         "Tech Talk: Quantum Computing", "Data Science Bootcamp",
@@ -116,7 +114,24 @@ public class DummyDataSeeder implements CommandLineRunner {
         "Lecture Hall 2, Building E", "Student Club House"
     );
 
-    // All names must be unique!
+    // --- NEW address data for weather features ---
+    private static final List<String> CITIES = Arrays.asList(
+        "Dortmund", "Berlin", "Munich", "Hamburg", "Cologne",
+        "Frankfurt", "Stuttgart", "Düsseldorf", "Leipzig", "Dresden"
+    );
+
+    private static final List<String> STREETS = Arrays.asList(
+        "Emil-Figge-Straße 50", "Friedrichstraße 100", "Marienplatz 1",
+        "Reeperbahn 12", "Domplatz 5", "Zeil 20", "Königstraße 30",
+        "Boulevard der Ideen 7", "Hauptstraße 42", "Am Campus 3"
+    );
+
+    private static final List<String> VENUES = Arrays.asList(
+        "Westfalenpark", "Central Station Plaza", "Olympiapark",
+        "Planten un Blomen", "Rheinpark", "Palmengarten", "Schlossplatz",
+        "Hofgarten", "Campus Wiese", "Stadtgarten"
+    );
+
     private static final List<String> USER_NAMES = Arrays.asList(
         "Alice Wonder", "Bob Builder", "Charlie Brown", "Diana Prince",
         "Ethan Hunt", "Fiona Gallagher", "George Costanza", "Hermione Granger",
@@ -134,7 +149,6 @@ public class DummyDataSeeder implements CommandLineRunner {
         "Wellness", "Science", "Technology", "Language", "Social"
     );
 
-    // Using Map.ofEntries to support many key-value pairs
     private static final Map<String, String> CATEGORY_ICONS = Map.ofEntries(
         Map.entry("Workshop", "workshop"),
         Map.entry("Party", "party"),
@@ -223,14 +237,10 @@ public class DummyDataSeeder implements CommandLineRunner {
                 rsvpRepository.count(), reviewRepository.count());
     }
 
-    /**
-     * Clear all tables in correct order to respect foreign key constraints.
-     * Reports depend on Events, so delete reports first.
-     */
     private void clearDatabase() {
         reviewVoteRepository.deleteAll();
         reviewRepository.deleteAll();
-        reportRepository.deleteAll();      // <-- NEW: delete reports before events
+        reportRepository.deleteAll();
         rsvpRepository.deleteAll();
         notificationRepository.deleteAll();
         eventRepository.deleteAll();
@@ -242,7 +252,7 @@ public class DummyDataSeeder implements CommandLineRunner {
         userRepository.flush();
     }
 
-    // ---------- USERS (40+) ----------
+    // ---------- USERS ----------
     private List<User> createUsers() {
         List<User> users = new ArrayList<>();
         // Admins
@@ -257,7 +267,7 @@ public class DummyDataSeeder implements CommandLineRunner {
                     name, Role.STUDENT, TrustLevel.TRUSTED_HOST, true));
         }
 
-        // Regular students (mix of NEW and TRUSTED_HOST, some unverified)
+        // Regular students
         for (int i = 5; i < USER_NAMES.size(); i++) {
             String name = USER_NAMES.get(i);
             boolean verified = random.nextDouble() < 0.8;
@@ -269,13 +279,12 @@ public class DummyDataSeeder implements CommandLineRunner {
         // Flagged user
         users.add(createUser("flagged@example.com", "Flagged User", Role.STUDENT, TrustLevel.FLAGGED, true));
 
-        // Extra users to reach ~40 (using generic names)
+        // Extra users
         for (int i = 0; i < 5; i++) {
             String name = "ExtraUser" + (i+1);
             users.add(createUser("extra" + i + "@example.com", name, Role.STUDENT,
                     TrustLevel.NEW, random.nextBoolean()));
         }
-
         return users;
     }
 
@@ -307,7 +316,7 @@ public class DummyDataSeeder implements CommandLineRunner {
         return categories;
     }
 
-    // ---------- EVENTS (60+) with varied statuses ----------
+    // ---------- EVENTS (with address/outdoor fields) ----------
     private List<Event> createEvents(List<User> users) {
         List<Event> events = new ArrayList<>();
         Instant now = Instant.now();
@@ -318,19 +327,13 @@ public class DummyDataSeeder implements CommandLineRunner {
 
         User primaryHost = activeHosts.get(0);
 
-        // --- HERO EVENTS (For targeted frontend testing) ---
-        
-        // 1. LIVE CHECK-IN SIMULATOR (Started 15 mins ago)
-        events.add(createEvent("[LIVE] Check-in Simulator", now.minus(15, ChronoUnit.MINUTES), 
+        // Hero events
+        events.add(createEvent("[LIVE] Check-in Simulator", now.minus(15, ChronoUnit.MINUTES),
+                primaryHost, EventStatus.PUBLISHED, null));
+        events.add(createEvent("[HOT] Waitlist Bottleneck Event", now.plus(1, ChronoUnit.DAYS),
                 primaryHost, EventStatus.PUBLISHED, null));
 
-        // 2. WAITLIST BOTTLENECK (Tiny capacity to guarantee waitlist)
-        events.add(createEvent("[HOT] Waitlist Bottleneck Event", now.plus(1, ChronoUnit.DAYS), 
-                primaryHost, EventStatus.PUBLISHED, null));
-
-        // --- RANDOMIZED FEED EVENTS ---
-
-        // 1. Future PUBLISHED (23 events)
+        // 23 future PUBLISHED
         for (int i = 0; i < 23; i++) {
             User host = activeHosts.get(random.nextInt(activeHosts.size()));
             Instant start = now.plus(random.nextInt(30) + 1, ChronoUnit.DAYS)
@@ -338,7 +341,7 @@ public class DummyDataSeeder implements CommandLineRunner {
             events.add(createEvent(EVENT_TITLES.get(random.nextInt(EVENT_TITLES.size())), start, host, EventStatus.PUBLISHED, null));
         }
 
-        // 2. Past events – now set to COMPLETED (15 events)
+        // 15 past COMPLETED
         for (int i = 0; i < 15; i++) {
             User host = activeHosts.get(random.nextInt(activeHosts.size()));
             Instant start = now.minus(random.nextInt(30) + 1, ChronoUnit.DAYS)
@@ -346,21 +349,21 @@ public class DummyDataSeeder implements CommandLineRunner {
             events.add(createEvent(EVENT_TITLES.get(random.nextInt(EVENT_TITLES.size())) + " (Past)", start, host, EventStatus.COMPLETED, null));
         }
 
-        // 3. UNDER_REVIEW (10 events)
+        // 10 UNDER_REVIEW
         for (int i = 0; i < 10; i++) {
             User host = activeHosts.get(random.nextInt(activeHosts.size()));
             Instant start = now.plus(random.nextInt(20) + 1, ChronoUnit.DAYS);
             events.add(createEvent("Review: " + EVENT_TITLES.get(random.nextInt(EVENT_TITLES.size())), start, host, EventStatus.UNDER_REVIEW, null));
         }
 
-        // 4. CANCELLED (5 events)
+        // 5 CANCELLED
         for (int i = 0; i < 5; i++) {
             User host = activeHosts.get(random.nextInt(activeHosts.size()));
             Instant start = now.plus(random.nextInt(15) + 1, ChronoUnit.DAYS);
             events.add(createEvent("CANCELLED: " + EVENT_TITLES.get(random.nextInt(EVENT_TITLES.size())), start, host, EventStatus.CANCELLED, "Cancelled due to weather"));
         }
 
-        // 5. DRAFT (5 events)
+        // 5 DRAFT
         for (int i = 0; i < 5; i++) {
             User host = activeHosts.get(random.nextInt(activeHosts.size()));
             Instant start = now.plus(random.nextInt(20) + 1, ChronoUnit.DAYS);
@@ -370,16 +373,27 @@ public class DummyDataSeeder implements CommandLineRunner {
         return events;
     }
 
+    /**
+     * Creates a single event with random data. Sets address fields and isOutdoor flag.
+     */
     private Event createEvent(String title, Instant startTime, User host, EventStatus status, String cancellationReason) {
         int capacity;
         if (random.nextDouble() < 0.3) {
-            capacity = 5 + random.nextInt(15);  // small
+            capacity = 5 + random.nextInt(15);
         } else {
             capacity = 20 + random.nextInt(80);
         }
         int rsvpCount = (status == EventStatus.PUBLISHED || status == EventStatus.CANCELLED || status == EventStatus.COMPLETED)
                 ? random.nextInt(Math.min(capacity, 20))
                 : 0;
+
+        // --- NEW: Address and outdoor fields ---
+        boolean isOutdoor = random.nextDouble() < 0.3; // 30% outdoor
+        String city = isOutdoor ? CITIES.get(random.nextInt(CITIES.size())) : null;
+        String street = isOutdoor ? STREETS.get(random.nextInt(STREETS.size())) : null;
+        String venueName = isOutdoor ? VENUES.get(random.nextInt(VENUES.size())) : null;
+        String postalCode = isOutdoor ? String.valueOf(10000 + random.nextInt(90000)) : null;
+        String country = "DE";
 
         return Event.builder()
                 .host(host)
@@ -395,6 +409,15 @@ public class DummyDataSeeder implements CommandLineRunner {
                 .slug(title.toLowerCase().replaceAll("[^a-z0-9]", "-") + "-" + UUID.randomUUID().toString().substring(0, 6))
                 .checkInCode(UUID.randomUUID().toString().substring(0, 6).toUpperCase())
                 .viewCount((long) random.nextInt(100))
+                // NEW address fields
+                .venueName(venueName)
+                .street(street)
+                .city(city)
+                .postalCode(postalCode)
+                .country(country)
+                .isOutdoor(isOutdoor)
+                .latitude(null)   // will be geocoded later if needed
+                .longitude(null)
                 .build();
     }
 
@@ -418,47 +441,39 @@ public class DummyDataSeeder implements CommandLineRunner {
         eventRepository.saveAll(events);
     }
 
-    // ---------- RSVPS (with waitlist and check-in) ----------
+    // ---------- RSVPS ----------
     private void createRsvps(List<User> users, List<Event> events) {
         List<User> activeUsers = users.stream()
                 .filter(u -> u.getTrustLevel() != TrustLevel.FLAGGED)
                 .collect(Collectors.toList());
 
-        // Find Charlie Brown's user object for guaranteed ATTENDED RSVP
         User charlieBrown = users.stream()
                 .filter(u -> u.getUniversityEmail().equals("charlie.brown@example.com"))
-                .findFirst()
-                .orElse(null);
+                .findFirst().orElse(null);
 
         for (Event event : events) {
-            // Handle both PUBLISHED and COMPLETED events
             if (event.getStatus() != EventStatus.PUBLISHED && event.getStatus() != EventStatus.COMPLETED) {
                 continue;
             }
 
             boolean isPast = event.getEndTime().isBefore(Instant.now());
             int capacity = event.getMaxCapacity();
-            
-            // Allow maxRsvps to exceed capacity by up to 15 to force waitlists for future events
-            int maxRsvps = isPast 
-                ? Math.min(capacity, random.nextInt(capacity + 1)) 
-                : capacity + random.nextInt(15); 
+            int maxRsvps = isPast
+                    ? Math.min(capacity, random.nextInt(capacity + 1))
+                    : capacity + random.nextInt(15);
 
-            // Special overrides for our "Hero" test events
             if (event.getTitle().contains("[HOT]")) {
                 capacity = 5;
                 event.setMaxCapacity(capacity);
-                maxRsvps = 20; // 5 going, 15 waitlisted
+                maxRsvps = 20;
             } else if (event.getTitle().contains("[LIVE]")) {
-                maxRsvps = 25; // Guarantee a good crowd for check-in testing
+                maxRsvps = 25;
             }
 
             List<User> shuffledUsers = new ArrayList<>(activeUsers);
             Collections.shuffle(shuffledUsers, random);
 
-            // Ensure Charlie Brown gets an ATTENDED RSVP for the first COMPLETED event
             boolean charlieAttended = false;
-
             int created = 0;
             int goingCount = 0;
 
@@ -466,32 +481,25 @@ public class DummyDataSeeder implements CommandLineRunner {
                 if (created >= maxRsvps) break;
                 if (user.equals(event.getHost())) continue;
 
-                // Check if user already has an RSVP for this event
                 List<Rsvp> existing = rsvpRepository.findByEventId(event.getId());
                 boolean alreadyRsvped = existing.stream().anyMatch(r -> r.getUser().equals(user));
                 if (alreadyRsvped) continue;
 
                 RsvpStatus status;
-                
                 if (goingCount < capacity) {
                     if (isPast) {
-                        // For past events, most are ATTENDED, but we'll decide:
                         if (charlieBrown != null && user.equals(charlieBrown) && event.getStatus() == EventStatus.COMPLETED && !charlieAttended) {
-                            // Force Charlie Brown to be ATTENDED for the first completed event
                             status = RsvpStatus.ATTENDED;
                             charlieAttended = true;
                         } else {
                             status = random.nextDouble() < 0.8 ? RsvpStatus.ATTENDED : RsvpStatus.CANCELLED;
                         }
                     } else if (event.getTitle().contains("[LIVE]")) {
-                        // Mix of checked-in and pending for the live event
                         status = random.nextDouble() < 0.6 ? RsvpStatus.ATTENDED : RsvpStatus.GOING;
                     } else {
-                        double r = random.nextDouble();
-                        status = r < 0.7 ? RsvpStatus.GOING : RsvpStatus.CANCELLED;
+                        status = random.nextDouble() < 0.7 ? RsvpStatus.GOING : RsvpStatus.CANCELLED;
                     }
                 } else {
-                    // Naturally pushes people to the waitlist once capacity is reached
                     status = isPast ? RsvpStatus.CANCELLED : RsvpStatus.WAITLISTED;
                 }
 
@@ -509,7 +517,6 @@ public class DummyDataSeeder implements CommandLineRunner {
                 created++;
             }
 
-            // Use the calculated goingCount instead of hitting the database
             event.setCurrentRsvpCount(goingCount);
             eventRepository.save(event);
         }
@@ -517,13 +524,11 @@ public class DummyDataSeeder implements CommandLineRunner {
 
     // ---------- REVIEWS ----------
     private void createReviews(List<Event> events) {
-        // Only past events that are COMPLETED
         List<Event> completedEvents = events.stream()
                 .filter(e -> e.getStatus() == EventStatus.COMPLETED && e.getEndTime().isBefore(Instant.now()))
                 .collect(Collectors.toList());
 
         for (Event event : completedEvents) {
-            // Get attendees (GOING or ATTENDED)
             List<Rsvp> attendees = rsvpRepository.findByEventId(event.getId()).stream()
                     .filter(r -> r.getStatus() == RsvpStatus.GOING || r.getStatus() == RsvpStatus.ATTENDED)
                     .collect(Collectors.toList());

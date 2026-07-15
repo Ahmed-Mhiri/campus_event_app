@@ -1,5 +1,7 @@
 package de.fhdortmund.mystudyapp.events.mapper;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -20,6 +22,9 @@ import de.fhdortmund.mystudyapp.identity.mapper.UserMapper;
 import de.fhdortmund.mystudyapp.moderation.repository.ReviewRepository;
 import de.fhdortmund.mystudyapp.registration.model.Rsvp;
 import de.fhdortmund.mystudyapp.registration.repository.RsvpRepository;
+import de.fhdortmund.mystudyapp.weather.dto.WeatherAssessment;
+import de.fhdortmund.mystudyapp.weather.repository.CityWeatherRepository;
+import de.fhdortmund.mystudyapp.weather.service.WeatherRiskEngine;
 import lombok.RequiredArgsConstructor;
 
 @Component
@@ -28,10 +33,12 @@ public class EventMapper {
 
     private final UserMapper userMapper;
     private final RsvpRepository rsvpRepository;
-
-    // PHASE 0: Injected to fetch host aggregates without N+1
     private final EventRepository eventRepository;
     private final ReviewRepository reviewRepository;
+
+    // ==================== PHASE 5 – NEW DEPENDENCIES ====================
+    private final CityWeatherRepository cityWeatherRepository;
+    private final WeatherRiskEngine riskEngine;
 
     public EventDto toDto(Event event, UUID currentUserId) {
         if (event == null) return null;
@@ -54,10 +61,10 @@ public class EventMapper {
             myRsvp = rsvpRepository.findByEventIdAndUserId(event.getId(), currentUserId).orElse(null);
         }
 
-        // PHASE 0 FIX: Build HostDto with embedded aggregates
         HostDto hostDto = buildHostDto(event.getHost());
 
-        return EventDto.builder()
+        // Start building
+        EventDto.EventDtoBuilder dtoBuilder = EventDto.builder()
                 .id(event.getId())
                 .host(hostDto)
                 .title(event.getTitle())
@@ -72,13 +79,41 @@ public class EventMapper {
                 .media(mapMedia(event))
                 .createdAt(event.getCreatedAt())
                 .isHost(isHost)
-                .deleted(event.getDeletedAt() != null) // ✅ ADDED
+                .deleted(event.getDeletedAt() != null)
                 .myRsvpStatus(myRsvp != null ? myRsvp.getStatus() : null)
-                // PHASE 2 ADDITIONS
+                // Phase 2 fields
                 .slug(event.getSlug())
                 .viewCount(event.getViewCount())
                 .cancellationReason(event.getCancellationReason())
-                .build();
+                // Phase 2 address fields
+                .venueName(event.getVenueName())
+                .street(event.getStreet())
+                .city(event.getCity())
+                .postalCode(event.getPostalCode())
+                .country(event.getCountry())
+                .latitude(event.getLatitude())
+                .longitude(event.getLongitude())
+                .isOutdoor(event.isOutdoor());
+
+        // ==================== PHASE 5 – WEATHER ASSESSMENT ====================
+        if (event.isOutdoor() && event.getCity() != null && event.getStartTime() != null) {
+            LocalDate eventDate = event.getStartTime().atZone(ZoneId.systemDefault()).toLocalDate();
+            LocalDate now = LocalDate.now();
+            // Only if event date is within the next 14 days
+            if (!eventDate.isBefore(now) && eventDate.isBefore(now.plusDays(14))) {
+                cityWeatherRepository.findByCityAndDate(event.getCity(), eventDate)
+                        .ifPresent(forecast -> {
+                            WeatherAssessment assessment = riskEngine.assess(forecast);
+                            dtoBuilder.weatherRisk(assessment.getRisk())
+                                      .weatherRecommendation(assessment.getRecommendation())
+                                      .weatherTemperature(forecast.getTempMax())
+                                      .weatherRainProbability(forecast.getRainProbability())
+                                      .weatherAvailable(assessment.isAvailable());
+                        });
+            }
+        }
+
+        return dtoBuilder.build();
     }
 
     public EventDto toDto(Event event) {
@@ -87,7 +122,6 @@ public class EventMapper {
 
     /**
      * PHASE 0: Builds a HostDto with trust-level aggregates.
-     * Uses existing repository queries so no new DB schema is required.
      */
     private HostDto buildHostDto(de.fhdortmund.mystudyapp.identity.model.User host) {
         if (host == null) return null;

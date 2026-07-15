@@ -40,4 +40,23 @@ public class CreateEventRequest {
     /** Optional custom slug (auto-generated from title if not provided) */
     @Size(max = 150, message = "Slug must not exceed 150 characters")
     private String slug;
+
+    /* ==================== PHASE 2 – GEOCODING FIELDS ==================== */
+
+    @Size(max = 255)
+    private String venueName;
+
+    @Size(max = 255)
+    private String street;
+
+    @Size(max = 100)
+    private String city;
+
+    @Size(max = 20)
+    private String postalCode;
+
+    @Size(max = 2)
+    private String country = "DE";
+
+    private boolean isOutdoor = false;
 }

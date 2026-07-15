@@ -1,0 +1,3082 @@
+﻿=== controller\AdminCategoryController.java ===
+package de.fhdortmund.mystudyapp.events.controller;
+
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import de.fhdortmund.mystudyapp.common.exception.ResourceNotFoundException;
+import de.fhdortmund.mystudyapp.common.response.ApiResponse;
+import de.fhdortmund.mystudyapp.events.model.Category;
+import de.fhdortmund.mystudyapp.events.repository.CategoryRepository;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/admin/categories")
+@PreAuthorize("hasRole('ADMIN')")
+@RequiredArgsConstructor
+public class AdminCategoryController {
+
+    private final CategoryRepository categoryRepository;
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<Category>>> getAllCategories() {
+        return ResponseEntity.ok(ApiResponse.success(
+                categoryRepository.findAllByOrderBySortOrderAsc(), "Categories retrieved"));
+    }
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<Category>> createCategory(
+            @Valid @RequestBody CategoryRequest request) {
+        String name = request.getName().trim();
+        if (categoryRepository.existsByName(name)) {
+            throw new IllegalArgumentException("Category '" + name + "' already exists");
+        }
+
+        Category category = Category.builder()
+                .name(name)
+                .icon(request.getIcon())
+                .color(request.getColor())
+                .sortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0)
+                .build();
+        Category saved = categoryRepository.save(category);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(saved, "Category created"));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<Category>> updateCategory(
+            @PathVariable Integer id,
+            @Valid @RequestBody CategoryRequest request) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category", "id", id));
+
+        String newName = request.getName().trim();
+        if (!category.getName().equalsIgnoreCase(newName) && categoryRepository.existsByName(newName)) {
+            throw new IllegalArgumentException("Category '" + newName + "' already exists");
+        }
+
+        category.setName(newName);
+        // PHASE 3: Update visual fields
+        category.setIcon(request.getIcon());
+        category.setColor(request.getColor());
+        if (request.getSortOrder() != null) {
+            category.setSortOrder(request.getSortOrder());
+        }
+
+        Category saved = categoryRepository.save(category);
+        return ResponseEntity.ok(ApiResponse.success(saved, "Category updated"));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteCategory(@PathVariable Integer id) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category", "id", id));
+        categoryRepository.delete(category);
+        return ResponseEntity.ok(ApiResponse.success(null, "Category deleted"));
+    }
+
+    @Data
+    public static class CategoryRequest {
+        @NotBlank(message = "Category name is required")
+        @Size(min = 1, max = 50, message = "Name must be between 1 and 50 characters")
+        private String name;
+
+        /* ==================== PHASE 3 ADDITIONS ==================== */
+
+        /** Icon identifier (e.g., "music", "tech", "sports") */
+        @Size(max = 50, message = "Icon must not exceed 50 characters")
+        private String icon;
+
+        /** Hex color for badge background (e.g., "#FF5733") */
+        @Size(max = 7, message = "Color must be a valid hex code")
+        private String color;
+
+        /** Sort order for display */
+        private Integer sortOrder;
+    }
+}
+=== controller\AdminDashboardController.java ===
+package de.fhdortmund.mystudyapp.events.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import de.fhdortmund.mystudyapp.common.response.ApiResponse;
+import de.fhdortmund.mystudyapp.events.dto.AdminDashboardDto;
+import de.fhdortmund.mystudyapp.events.service.AdminDashboardService;
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/admin/dashboard")
+@PreAuthorize("hasRole('ADMIN')")
+@RequiredArgsConstructor
+public class AdminDashboardController {
+
+    private final AdminDashboardService adminDashboardService;
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<AdminDashboardDto>> getDashboard() {
+        AdminDashboardDto dashboard = adminDashboardService.getDashboardStats();
+        return ResponseEntity.ok(ApiResponse.success(dashboard, "Dashboard stats retrieved"));
+    }
+}
+=== controller\AdminEventController.java ===
+package de.fhdortmund.mystudyapp.events.controller;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import de.fhdortmund.mystudyapp.common.exception.ResourceNotFoundException;
+import de.fhdortmund.mystudyapp.common.response.ApiResponse;
+import de.fhdortmund.mystudyapp.common.response.PageResponse;
+import de.fhdortmund.mystudyapp.events.dto.BulkEventActionRequest;
+import de.fhdortmund.mystudyapp.events.dto.BulkEventActionResult;
+import de.fhdortmund.mystudyapp.events.dto.EventDto;
+import de.fhdortmund.mystudyapp.events.mapper.EventMapper;
+import de.fhdortmund.mystudyapp.events.model.Event;
+import de.fhdortmund.mystudyapp.events.model.EventStatus;
+import de.fhdortmund.mystudyapp.events.repository.EventRepository;
+import de.fhdortmund.mystudyapp.identity.repository.UserRepository;
+import de.fhdortmund.mystudyapp.notification.model.NotificationType;
+import de.fhdortmund.mystudyapp.notification.publisher.NotificationEventPublisher;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/admin/events")
+@PreAuthorize("hasRole('ADMIN')")
+@RequiredArgsConstructor
+public class AdminEventController {
+
+    private final EventRepository eventRepository;
+    private final EventMapper eventMapper;
+    private final UserRepository userRepository;
+
+    // PHASE 1.3: For sending notifications to hosts
+    private final NotificationEventPublisher notificationPublisher;
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<PageResponse<EventDto>>> getAllEvents(
+            @RequestParam(required = false) EventStatus status,
+            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable,
+            @AuthenticationPrincipal User principal) {
+
+        Page<Event> page = (status != null)
+                ? eventRepository.findByStatus(status, pageable)
+                : eventRepository.findAll(pageable);
+
+        UUID adminId = userRepository.findByUniversityEmail(principal.getUsername())
+                .map(de.fhdortmund.mystudyapp.identity.model.User::getId)
+                .orElse(null);
+
+        PageResponse<EventDto> response = PageResponse.<EventDto>builder()
+                .content(page.getContent().stream()
+                        .map(e -> eventMapper.toDto(e, adminId))
+                        .collect(Collectors.toList()))
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .last(page.isLast())
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.success(response, "Events retrieved"));
+    }
+
+    @GetMapping("/pending")
+    public ResponseEntity<ApiResponse<PageResponse<EventDto>>> getPendingEvents(
+            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable,
+            @AuthenticationPrincipal User principal) {
+
+        Page<Event> page = eventRepository.findByStatus(EventStatus.UNDER_REVIEW, pageable);
+
+        UUID adminId = userRepository.findByUniversityEmail(principal.getUsername())
+                .map(de.fhdortmund.mystudyapp.identity.model.User::getId)
+                .orElse(null);
+
+        PageResponse<EventDto> response = PageResponse.<EventDto>builder()
+                .content(page.getContent().stream()
+                        .map(e -> eventMapper.toDto(e, adminId))
+                        .collect(Collectors.toList()))
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .last(page.isLast())
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.success(response, "Pending events retrieved"));
+    }
+
+    @PatchMapping("/{eventId}/approve")
+    public ResponseEntity<ApiResponse<EventDto>> approveEvent(
+            @PathVariable UUID eventId,
+            @AuthenticationPrincipal User principal) {
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
+
+        event.setStatus(EventStatus.PUBLISHED);
+        Event saved = eventRepository.save(event);
+
+        // PHASE 1.3: Notify host that their event was approved
+        notificationPublisher.publishEventNotification(
+        event.getHost().getId(),
+        NotificationType.EVENT_APPROVED,
+        "Event Approved",
+        "Your event \"" + event.getTitle() + "\" has been approved and is now live!",
+        event.getId(),
+        event.getTitle()
+        );
+
+        UUID adminId = userRepository.findByUniversityEmail(principal.getUsername())
+                .map(de.fhdortmund.mystudyapp.identity.model.User::getId)
+                .orElse(null);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                eventMapper.toDto(saved, adminId),
+                "Event approved and published"));
+    }
+
+    @PatchMapping("/{eventId}/reject")
+    public ResponseEntity<ApiResponse<Void>> rejectEvent(
+            @PathVariable UUID eventId,
+            @AuthenticationPrincipal User principal) {
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
+
+        event.setStatus(EventStatus.CANCELLED);
+        eventRepository.save(event);
+
+        // PHASE 1.3: Notify host that their event was rejected
+        notificationPublisher.publishEventNotification(
+                event.getHost().getId(),
+                NotificationType.EVENT_REJECTED,
+                "Event Rejected",
+                "Your event '" + event.getTitle() + "' was not approved. Please review our guidelines.",
+                event.getId(),
+                event.getTitle()
+        );
+
+        return ResponseEntity.ok(ApiResponse.success(null, "Event rejected"));
+    }
+
+    @PatchMapping("/{eventId}/flag")
+    public ResponseEntity<ApiResponse<EventDto>> flagEvent(
+            @PathVariable UUID eventId,
+            @AuthenticationPrincipal User principal) {
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
+
+        event.setStatus(EventStatus.UNDER_REVIEW);
+        Event saved = eventRepository.save(event);
+
+        UUID adminId = userRepository.findByUniversityEmail(principal.getUsername())
+                .map(de.fhdortmund.mystudyapp.identity.model.User::getId)
+                .orElse(null);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                eventMapper.toDto(saved, adminId),
+                "Event flagged for review"));
+    }
+
+    /* ==================== PHASE 2: BULK OPERATIONS ==================== */
+
+    @PostMapping("/bulk-approve")
+    public ResponseEntity<ApiResponse<BulkEventActionResult>> bulkApproveEvents(
+            @Valid @RequestBody BulkEventActionRequest request,
+            @AuthenticationPrincipal User principal) {
+
+        BulkEventActionResult result = processBulkAction(request.getEventIds(), true, null, principal);
+        return ResponseEntity.ok(ApiResponse.success(result, "Bulk approve completed"));
+    }
+
+    @PostMapping("/bulk-reject")
+    public ResponseEntity<ApiResponse<BulkEventActionResult>> bulkRejectEvents(
+            @Valid @RequestBody BulkEventActionRequest request,
+            @AuthenticationPrincipal User principal) {
+
+        BulkEventActionResult result = processBulkAction(request.getEventIds(), false, request.getReason(), principal);
+        return ResponseEntity.ok(ApiResponse.success(result, "Bulk reject completed"));
+    }
+
+    private BulkEventActionResult processBulkAction(List<UUID> eventIds, boolean approve, String reason, User principal) {
+        int successCount = 0;
+        int failedCount = 0;
+        java.util.List<UUID> succeededIds = new java.util.ArrayList<>();
+        java.util.List<UUID> failedIds = new java.util.ArrayList<>();
+
+        for (UUID eventId : eventIds) {
+            try {
+                Event event = eventRepository.findById(eventId)
+                        .orElse(null);
+                if (event == null) {
+                    failedIds.add(eventId);
+                    failedCount++;
+                    continue;
+                }
+
+                if (approve) {
+                    event.setStatus(EventStatus.PUBLISHED);
+                    eventRepository.save(event);
+                        notificationPublisher.publishEventNotification(
+                        event.getHost().getId(),
+                        NotificationType.EVENT_APPROVED,
+                        "Event Approved",
+                        "Your event \"" + event.getTitle() + "\" has been approved and is now live!",
+                        event.getId(),
+                        event.getTitle()
+                        );
+                } else {
+                    event.setStatus(EventStatus.CANCELLED);
+                    event.setCancellationReason(reason);
+                    eventRepository.save(event);
+                    notificationPublisher.publishEventNotification(
+                            event.getHost().getId(),
+                            NotificationType.EVENT_REJECTED,
+                            "Event Rejected",
+                            "Your event '" + event.getTitle() + "' was not approved. " +
+                                    (reason != null ? "Reason: " + reason : "Please review our guidelines."),
+                            event.getId(),
+                            event.getTitle()
+                    );
+                }
+
+                succeededIds.add(eventId);
+                successCount++;
+
+            } catch (Exception e) {
+                failedIds.add(eventId);
+                failedCount++;
+            }
+        }
+
+        return BulkEventActionResult.builder()
+                .processedCount(eventIds.size())
+                .successCount(successCount)
+                .failedCount(failedCount)
+                .succeededIds(succeededIds)
+                .failedIds(failedIds)
+                .message(String.format("Processed %d events: %d succeeded, %d failed",
+                        eventIds.size(), successCount, failedCount))
+                .build();
+    }
+}
+=== controller\CategoryController.java ===
+package de.fhdortmund.mystudyapp.events.controller;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import de.fhdortmund.mystudyapp.common.response.ApiResponse;
+import de.fhdortmund.mystudyapp.events.dto.CategoryDto;
+import de.fhdortmund.mystudyapp.events.repository.CategoryRepository;
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/public/categories")
+@RequiredArgsConstructor
+public class CategoryController {
+
+    private final CategoryRepository categoryRepository;
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<CategoryDto>>> getAllCategories() {
+        List<CategoryDto> dtos = categoryRepository.findAllByOrderBySortOrderAsc().stream()
+                .map(cat -> CategoryDto.builder()
+                        .id(cat.getId())
+                        .name(cat.getName())
+                        .icon(cat.getIcon())
+                        .color(cat.getColor())
+                        .sortOrder(cat.getSortOrder())
+                        .build())
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.success(dtos, "Categories retrieved"));
+    }
+}
+=== controller\EventController.java ===
+package de.fhdortmund.mystudyapp.events.controller;
+
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import de.fhdortmund.mystudyapp.common.response.ApiResponse;
+import de.fhdortmund.mystudyapp.common.response.PageResponse;
+import de.fhdortmund.mystudyapp.events.dto.CancelEventRequest;
+import de.fhdortmund.mystudyapp.events.dto.CheckInCodeDto;
+import de.fhdortmund.mystudyapp.events.dto.CreateEventRequest;
+import de.fhdortmund.mystudyapp.events.dto.EventDto;
+import de.fhdortmund.mystudyapp.events.service.EventService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/events")
+@RequiredArgsConstructor
+public class EventController {
+
+    private final EventService eventService;
+
+    /* -------------------- CRUD -------------------- */
+
+    @PostMapping
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<EventDto>> createEvent(
+            @Valid @RequestBody CreateEventRequest request,
+            @AuthenticationPrincipal User principal) {
+        EventDto event = eventService.createEvent(request, principal.getUsername());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(event, "Event created successfully"));
+    }
+
+    /**
+     * PHASE 2: Create a draft event â€” no date validation, partial data accepted.
+     */
+    @PostMapping("/draft")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<EventDto>> createDraft(
+            @Valid @RequestBody CreateEventRequest request,
+            @AuthenticationPrincipal User principal) {
+        EventDto event = eventService.createDraft(request, principal.getUsername());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(event, "Draft created successfully"));
+    }
+
+    /**
+     * PHASE 2: Publish a draft event.
+     */
+    @PutMapping("/{eventId}/publish")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<EventDto>> publishDraft(
+            @PathVariable UUID eventId,
+            @AuthenticationPrincipal User principal) {
+        EventDto event = eventService.publishDraft(eventId, principal.getUsername());
+        return ResponseEntity.ok(ApiResponse.success(event, "Draft published successfully"));
+    }
+
+    @GetMapping("/{eventId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<EventDto>> getEvent(
+            @PathVariable UUID eventId,
+            @AuthenticationPrincipal User principal) {
+        EventDto event = eventService.getEvent(eventId, principal.getUsername());
+        return ResponseEntity.ok(ApiResponse.success(event, "Event retrieved"));
+    }
+
+    /**
+     * PHASE 2: Get event by slug.
+     */
+    @GetMapping("/by-slug/{slug}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<EventDto>> getEventBySlug(
+            @PathVariable String slug,
+            @AuthenticationPrincipal User principal) {
+        EventDto event = eventService.getEventBySlug(slug, principal.getUsername());
+        return ResponseEntity.ok(ApiResponse.success(event, "Event retrieved"));
+    }
+
+    @GetMapping
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<PageResponse<EventDto>>> getPublishedEvents(
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) String dateFrom,
+            @RequestParam(required = false) String dateTo,
+            @RequestParam(required = false) String location,
+            @RequestParam(required = false) String q,
+            @PageableDefault(size = 20, sort = "startTime") Pageable pageable,
+            @AuthenticationPrincipal User principal) {
+
+        java.time.Instant from = dateFrom != null ? java.time.Instant.parse(dateFrom) : null;
+        java.time.Instant to = dateTo != null ? java.time.Instant.parse(dateTo) : null;
+
+        PageResponse<EventDto> events = eventService.getPublishedEvents(
+                categoryId, from, to, location, q, pageable, principal.getUsername());
+
+        return ResponseEntity.ok(ApiResponse.success(events, "Events retrieved"));
+    }
+
+    @GetMapping("/my-events")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<PageResponse<EventDto>>> getMyEvents(
+            @RequestParam(required = false, defaultValue = "false") boolean includeDeleted,
+            @PageableDefault(size = 20, sort = "startTime") Pageable pageable,
+            @AuthenticationPrincipal User principal) {
+
+        PageResponse<EventDto> events = includeDeleted
+                ? eventService.getMyEventsIncludingDeleted(principal.getUsername(), pageable)
+                : eventService.getMyEvents(principal.getUsername(), pageable);
+
+        return ResponseEntity.ok(ApiResponse.success(events, "My events retrieved"));
+    }
+
+    @PutMapping("/{eventId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<EventDto>> updateEvent(
+            @PathVariable UUID eventId,
+            @Valid @RequestBody CreateEventRequest request,
+            @AuthenticationPrincipal User principal) {
+        EventDto event = eventService.updateEvent(eventId, request, principal.getUsername());
+        return ResponseEntity.ok(ApiResponse.success(event, "Event updated successfully"));
+    }
+
+    @PatchMapping("/{eventId}/cancel")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<EventDto>> cancelEvent(
+            @PathVariable UUID eventId,
+            @Valid @RequestBody(required = false) CancelEventRequest request,
+            @AuthenticationPrincipal User principal) {
+        String reason = request != null ? request.getReason() : null;
+        EventDto event = eventService.cancelEvent(eventId, principal.getUsername(), reason);
+        return ResponseEntity.ok(ApiResponse.success(event, "Event cancelled successfully"));
+    }
+
+    /**
+     * PHASE 2: Soft delete (move to trash bin).
+     */
+    @DeleteMapping("/{eventId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Void>> deleteEvent(
+            @PathVariable UUID eventId,
+            @AuthenticationPrincipal User principal) {
+        eventService.deleteEvent(eventId, principal.getUsername());
+        return ResponseEntity.ok(ApiResponse.success(null, "Event moved to trash"));
+    }
+
+    /**
+     * PHASE 2: Restore soft-deleted event.
+     */
+    @PatchMapping("/{eventId}/restore")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<EventDto>> restoreEvent(
+            @PathVariable UUID eventId,
+            @AuthenticationPrincipal User principal) {
+        EventDto event = eventService.restoreEvent(eventId, principal.getUsername());
+        return ResponseEntity.ok(ApiResponse.success(event, "Event restored successfully"));
+    }
+
+    /**
+     * PHASE 2: Permanent delete (admin or already soft-deleted).
+     */
+    @DeleteMapping("/{eventId}/permanent")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Void>> permanentlyDeleteEvent(
+            @PathVariable UUID eventId,
+            @AuthenticationPrincipal User principal) {
+        eventService.permanentlyDeleteEvent(eventId, principal.getUsername());
+        return ResponseEntity.ok(ApiResponse.success(null, "Event permanently deleted"));
+    }
+
+    /* -------------------- Media -------------------- */
+
+    @PostMapping(value = "/{eventId}/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<EventDto>> uploadMedia(
+            @PathVariable UUID eventId,
+            @RequestParam(value = "images", required = false) List<MultipartFile> images,
+            @RequestParam(value = "videos", required = false) List<MultipartFile> videos,
+            @AuthenticationPrincipal User principal) {
+        EventDto event = eventService.addMedia(eventId, images, videos, principal.getUsername());
+        return ResponseEntity.ok(ApiResponse.success(event, "Media uploaded successfully"));
+    }
+
+    @DeleteMapping("/{eventId}/media/{mediaId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<EventDto>> deleteMedia(
+            @PathVariable UUID eventId,
+            @PathVariable UUID mediaId,
+            @AuthenticationPrincipal User principal) {
+        EventDto event = eventService.removeMedia(eventId, mediaId, principal.getUsername());
+        return ResponseEntity.ok(ApiResponse.success(event, "Media removed successfully"));
+    }
+
+    /**
+     * PHASE 2: Reorder media for an event.
+     */
+    @PatchMapping("/{eventId}/media/reorder")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<EventDto>> reorderMedia(
+            @PathVariable UUID eventId,
+            @RequestBody List<UUID> mediaIds,
+            @AuthenticationPrincipal User principal) {
+        EventDto event = eventService.reorderMedia(eventId, mediaIds, principal.getUsername());
+        return ResponseEntity.ok(ApiResponse.success(event, "Media reordered successfully"));
+    }
+
+    /* -------------------- Check-In (Phase 2 / 4.1) -------------------- */
+
+    /**
+     * Generate or retrieve a check-in code for the event.
+     * Host only â€” displays this as a QR code for attendees to scan.
+     * Code regenerates every 5 minutes for security.
+     */
+    @GetMapping("/{eventId}/check-in-code")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<CheckInCodeDto>> getCheckInCode(
+            @PathVariable UUID eventId,
+            @AuthenticationPrincipal User principal) {
+        
+        String code = eventService.generateCheckInCode(eventId, principal.getUsername());
+        EventDto event = eventService.getEvent(eventId, principal.getUsername());
+        
+        CheckInCodeDto dto = CheckInCodeDto.builder()
+                .checkInCode(code)
+                .eventId(eventId.toString())
+                .eventTitle(event.getTitle())
+                .generatedAt(java.time.Instant.now().toString())
+                .build();
+                
+        return ResponseEntity.ok(ApiResponse.success(dto, "Check-in code generated"));
+    }
+}
+=== controller\EventSseController.java ===
+package de.fhdortmund.mystudyapp.events.controller;
+
+import java.util.UUID;
+
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import de.fhdortmund.mystudyapp.events.service.EventSseService;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * PHASE 1.4: Server-Sent Events endpoint for real-time event updates.
+ *
+ * Clients subscribe via:
+ *   const es = new EventSource('/api/events/stream/{eventId}');
+ *   es.addEventListener('rsvp-update', (e) => { ... });
+ *   es.addEventListener('waitlist-update', (e) => { ... });
+ *   es.addEventListener('event-cancelled', (e) => { ... });
+ *
+ * The connection times out after 5 minutes â€” clients should reconnect.
+ */
+@RestController
+@RequestMapping("/api/events/stream")
+@RequiredArgsConstructor
+public class EventSseController {
+
+    private final EventSseService sseService;
+
+    /**
+     * Subscribe to real-time updates for a specific event.
+     * Returns text/event-stream content type.
+     */
+    @GetMapping(value = "/{eventId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter subscribeToEvent(@PathVariable UUID eventId) {
+        return sseService.subscribe(eventId);
+    }
+}
+
+=== controller\PublicEventController.java ===
+package de.fhdortmund.mystudyapp.events.controller;
+
+import java.time.Instant;
+import java.util.UUID;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import de.fhdortmund.mystudyapp.common.exception.ResourceNotFoundException;
+import de.fhdortmund.mystudyapp.common.response.ApiResponse;
+import de.fhdortmund.mystudyapp.common.response.PageResponse;
+import de.fhdortmund.mystudyapp.events.dto.EventDto;
+import de.fhdortmund.mystudyapp.events.model.EventStatus;
+import de.fhdortmund.mystudyapp.events.service.EventService;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * PHASE 1.2: Public Event Endpoints
+ * 
+ * Serves PUBLISHED events to unauthenticated users (landing page, SEO, sharing).
+ * No Bearer token required. Personal fields (myRsvpStatus, isHost) are stripped
+ * by passing null as the current user.
+ * 
+ * Endpoints:
+ *   GET /api/public/events          â†’ Filtered feed of published events
+ *   GET /api/public/events/{id}     â†’ Single published event detail
+ *   GET /api/public/events/featured â†’ Curated featured events (optional)
+ *   GET /api/public/events/slug/{slug} â†’ Get by slug (PHASE 2)
+ */
+@RestController
+@RequestMapping("/api/public/events")
+@RequiredArgsConstructor
+public class PublicEventController {
+
+    private final EventService eventService;
+
+    /**
+     * Public event feed â€” no authentication required.
+     * Returns only PUBLISHED events. myRsvpStatus and isHost are always null/false.
+     */
+    @GetMapping
+    public ResponseEntity<ApiResponse<PageResponse<EventDto>>> getPublicEvents(
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) Instant dateFrom,
+            @RequestParam(required = false) Instant dateTo,
+            @RequestParam(required = false) String location,
+            @RequestParam(required = false) String q,
+            @PageableDefault(size = 20, sort = "startTime") Pageable pageable) {
+
+        // Pass null as email â†’ no auth user â†’ myRsvpStatus = null, isHost = false
+        PageResponse<EventDto> events = eventService.getPublishedEvents(
+                categoryId, dateFrom, dateTo, location, q, pageable, null);
+
+        return ResponseEntity.ok(ApiResponse.success(events, "Events retrieved"));
+    }
+
+    /**
+     * Public single event detail â€” no authentication required.
+     * Only returns the event if its status is PUBLISHED.
+     */
+    @GetMapping("/{eventId}")
+    public ResponseEntity<ApiResponse<EventDto>> getPublicEvent(@PathVariable UUID eventId) {
+        // Pass null as email â†’ no auth context
+        EventDto event = eventService.getEvent(eventId, null);
+
+        // Security: never expose non-published events publicly
+        if (event.getStatus() != EventStatus.PUBLISHED) {
+            throw new ResourceNotFoundException("Event not found or not published");
+        }
+
+        return ResponseEntity.ok(ApiResponse.success(event, "Event retrieved"));
+    }
+
+    /**
+     * PHASE 2: Get event by slug â€” public, no auth required.
+     */
+    @GetMapping("/slug/{slug}")
+    public ResponseEntity<ApiResponse<EventDto>> getPublicEventBySlug(@PathVariable String slug) {
+        EventDto event = eventService.getEventBySlug(slug, null);
+
+        if (event.getStatus() != EventStatus.PUBLISHED) {
+            throw new ResourceNotFoundException("Event not found or not published");
+        }
+
+        return ResponseEntity.ok(ApiResponse.success(event, "Event retrieved"));
+    }
+
+    /**
+     * Featured events for the landing page hero section.
+     * Returns the next 6 upcoming PUBLISHED events, ordered by start time.
+     */
+    @GetMapping("/featured")
+    public ResponseEntity<ApiResponse<PageResponse<EventDto>>> getFeaturedEvents(
+            @PageableDefault(size = 6, sort = "startTime") Pageable pageable) {
+
+        // Featured = upcoming published events, no additional filters
+        PageResponse<EventDto> events = eventService.getPublishedEvents(
+                null, Instant.now(), null, null, null, pageable, null);
+
+        return ResponseEntity.ok(ApiResponse.success(events, "Featured events retrieved"));
+    }
+}
+=== controller\SearchController.java ===
+package de.fhdortmund.mystudyapp.events.controller;
+
+import java.util.List;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import de.fhdortmund.mystudyapp.common.response.ApiResponse;
+import de.fhdortmund.mystudyapp.events.dto.SearchSuggestionDto;
+import de.fhdortmund.mystudyapp.events.service.SearchService;
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/search")
+@RequiredArgsConstructor
+public class SearchController {
+
+    private final SearchService searchService;
+
+    @GetMapping("/suggestions")
+    public ResponseEntity<ApiResponse<List<SearchSuggestionDto>>> getSuggestions(
+            @RequestParam String q,
+            @RequestParam(required = false, defaultValue = "ALL") String type) {
+
+        List<SearchSuggestionDto> suggestions = searchService.getSuggestions(q, type);
+        return ResponseEntity.ok(ApiResponse.success(suggestions, "Suggestions retrieved"));
+    }
+}
+=== dto\AdminDashboardDto.java ===
+package de.fhdortmund.mystudyapp.events.dto;
+
+import java.util.List;
+
+import de.fhdortmund.mystudyapp.moderation.dto.ReportDto;
+import lombok.Builder;
+import lombok.Data;
+
+@Data
+@Builder
+public class AdminDashboardDto {
+    private long pendingEventsCount;
+    private long openReportsCount;
+    private long totalUsersCount;
+    private long newUsersToday;
+    private long eventsThisWeek;
+    private List<ReportDto> recentReports;
+    private List<EventDto> recentPendingEvents;
+}
+=== dto\BulkEventActionRequest.java ===
+package de.fhdortmund.mystudyapp.events.dto;
+
+import java.util.List;
+import java.util.UUID;
+
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+
+@Data
+public class BulkEventActionRequest {
+    @NotEmpty(message = "At least one event ID is required")
+    @Size(max = 50, message = "Cannot process more than 50 events at once")
+    private List<UUID> eventIds;
+
+    /** Optional rejection reason (only used for bulk reject) */
+    @Size(max = 500, message = "Reason must not exceed 500 characters")
+    private String reason;
+}
+=== dto\BulkEventActionResult.java ===
+package de.fhdortmund.mystudyapp.events.dto;
+
+import java.util.List;
+import java.util.UUID;
+
+import lombok.Builder;
+import lombok.Data;
+
+@Data
+@Builder
+public class BulkEventActionResult {
+    private int processedCount;
+    private int successCount;
+    private int failedCount;
+    private List<UUID> succeededIds;
+    private List<UUID> failedIds;
+    private String message;
+}
+=== dto\CancelEventRequest.java ===
+package de.fhdortmund.mystudyapp.events.dto;
+
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+
+@Data
+public class CancelEventRequest {
+    @Size(max = 500, message = "Cancellation reason must not exceed 500 characters")
+    private String reason;
+}
+=== dto\CategoryDto.java ===
+package de.fhdortmund.mystudyapp.events.dto;
+
+import lombok.Builder;
+import lombok.Data;
+
+@Data
+@Builder
+public class CategoryDto {
+    private Integer id;
+    private String name;
+
+    /* ==================== PHASE 2 ADDITIONS ==================== */
+
+    /** Icon identifier for SVG mapping */
+    private String icon;
+
+    /** Hex color for badge background */
+    private String color;
+
+    /** Sort order for display */
+    private Integer sortOrder;
+}
+=== dto\CheckInCodeDto.java ===
+package de.fhdortmund.mystudyapp.events.dto;
+
+import lombok.Builder;
+import lombok.Data;
+
+/**
+ * DTO for returning a generated check-in code to the host.
+ * Includes the code and metadata for QR display.
+ */
+@Data
+@Builder
+public class CheckInCodeDto {
+    private String checkInCode;
+    private String eventId;
+    private String eventTitle;
+    
+    /**
+     * ISO timestamp when the code was generated.
+     * Host should refresh QR periodically (e.g., every 5 minutes).
+     */
+    private String generatedAt;
+    
+    /**
+     * Recommended QR refresh interval in seconds.
+     */
+    @Builder.Default
+    private int refreshIntervalSeconds = 300; // 5 minutes
+}
+=== dto\CheckInRequest.java ===
+package de.fhdortmund.mystudyapp.events.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+
+/**
+ * Request body for attendee self check-in via QR code.
+ */
+@Data
+public class CheckInRequest {
+    
+    @NotBlank(message = "Check-in code is required")
+    @Size(min = 6, max = 10, message = "Invalid check-in code format")
+    private String code;
+}
+=== dto\CreateEventRequest.java ===
+package de.fhdortmund.mystudyapp.events.dto;
+
+import java.time.Instant;
+import java.util.Set;
+
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+
+@Data
+public class CreateEventRequest {
+
+    @NotBlank(message = "Title is required")
+    @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters")
+    private String title;
+
+    @Size(max = 2000, message = "Description must not exceed 2000 characters")
+    private String description;
+
+    @NotBlank(message = "Location is required")
+    @Size(max = 200, message = "Location must not exceed 200 characters")
+    private String location;
+
+    @NotNull(message = "Start time is required")
+    private Instant startTime;
+
+    @NotNull(message = "End time is required")
+    private Instant endTime;
+
+    @NotNull(message = "Max capacity is required")
+    @Min(value = 1, message = "Capacity must be at least 1")
+    private Integer maxCapacity;
+
+    private Set<Integer> categoryIds;
+
+    /* ==================== PHASE 2 ADDITIONS ==================== */
+
+    /** Optional custom slug (auto-generated from title if not provided) */
+    @Size(max = 150, message = "Slug must not exceed 150 characters")
+    private String slug;
+}
+=== dto\EventDto.java ===
+package de.fhdortmund.mystudyapp.events.dto;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+
+import de.fhdortmund.mystudyapp.events.model.EventStatus;
+import de.fhdortmund.mystudyapp.registration.model.RsvpStatus;
+import lombok.Builder;
+import lombok.Data;
+
+@Data
+@Builder
+public class EventDto {
+    private UUID id;
+    private HostDto host;
+    private String title;
+    private String description;
+    private String location;
+    private Instant startTime;
+    private Instant endTime;
+    private Integer maxCapacity;
+    private Integer currentRsvpCount;
+    private EventStatus status;
+    private Set<CategoryDto> categories;
+    private List<EventMediaDto> media;
+    private Instant createdAt;
+    private boolean isHost;
+    /** Current user's RSVP status for this event (null if not registered) */
+    private RsvpStatus myRsvpStatus;
+
+    /** Indicates if the event is in the softâ€‘deleted state (Trash Bin) */
+    private boolean deleted; // âœ… ADDED
+
+    /* ==================== PHASE 2 ADDITIONS ==================== */
+
+    /** Human-readable URL slug for sharing */
+    private String slug;
+
+    /** Social proof: how many times this event was viewed */
+    private Long viewCount;
+
+    /** Reason provided when host cancelled the event */
+    private String cancellationReason;
+}
+=== dto\EventMediaDto.java ===
+package de.fhdortmund.mystudyapp.events.dto;
+
+import java.util.UUID;
+
+import de.fhdortmund.mystudyapp.events.model.MediaType;
+import lombok.Builder;
+import lombok.Data;
+
+@Data
+@Builder
+public class EventMediaDto {
+    private UUID id;
+    private String url;
+    private MediaType mediaType;
+    private String filename;
+
+    /* ==================== PHASE 2 ADDITIONS ==================== */
+
+    /** 400x300 thumbnail for event cards */
+    private String thumbnailUrl;
+
+    /** 800x600 medium for detail views */
+    private String mediumUrl;
+
+    /** Display order in the media carousel */
+    private Integer displayOrder;
+}
+=== dto\HostDto.java ===
+package de.fhdortmund.mystudyapp.events.dto;
+
+import java.util.UUID;
+
+import de.fhdortmund.mystudyapp.identity.model.TrustLevel;
+import lombok.Builder;
+import lombok.Data;
+
+/**
+ * Enriched host representation for event cards and detail views.
+ * Includes trust-level aggregates so the frontend never needs an N+1 call
+ * to /api/public/users/{hostId} just to render stars.
+ */
+@Data
+@Builder
+public class HostDto {
+    private UUID id;
+    private String displayName;
+    private String profileImageUrl;
+    private TrustLevel trustLevel;
+
+    /** Average rating across ALL reviews for this host's completed events (0.0 if none) */
+    private Double averageHostRating;
+
+    /** Total number of reviews left on this host's events */
+    private Long totalHostReviews;
+
+    /** Number of completed events that have at least one review */
+    private Long completedEventsWithReviews;
+}
+=== dto\SearchSuggestionDto.java ===
+package de.fhdortmund.mystudyapp.events.dto;
+
+import lombok.Builder;
+import lombok.Data;
+
+@Data
+@Builder
+public class SearchSuggestionDto {
+    private String type;      // "EVENT", "CATEGORY", "USER", "LOCATION"
+    private String value;     // The display text
+    private String id;        // UUID or numeric ID for navigation
+    private String subtitle;  // Extra context (e.g., event date, user email)
+}
+=== factory\EventFactory.java ===
+package de.fhdortmund.mystudyapp.events.factory;
+
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+
+import org.springframework.stereotype.Component;
+
+import de.fhdortmund.mystudyapp.events.dto.CreateEventRequest;
+import de.fhdortmund.mystudyapp.events.model.Event;
+import de.fhdortmund.mystudyapp.events.model.EventStatus;
+import de.fhdortmund.mystudyapp.events.service.SlugGenerator;
+import de.fhdortmund.mystudyapp.identity.model.Role;
+import de.fhdortmund.mystudyapp.identity.model.TrustLevel;
+import de.fhdortmund.mystudyapp.identity.model.User;
+import de.fhdortmund.mystudyapp.identity.repository.UserRepository;
+import de.fhdortmund.mystudyapp.mqtt.dto.OfficialEventMessage;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * CREATIONAL PATTERN: Factory
+ * Centralizes creation of Event entities from multiple sources (REST API, MQTT, etc.)
+ * ensuring consistent defaults and business rules.
+ */
+@Component
+@RequiredArgsConstructor
+public class EventFactory {
+
+    private static final DateTimeFormatter ASTA_TIME_FORMAT = 
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
+    private final UserRepository userRepository;
+    private final SlugGenerator slugGenerator;
+
+    /* ==================== REST API Events ==================== */
+
+    public Event createEvent(CreateEventRequest request, User host) {
+        EventStatus initialStatus = (host.getTrustLevel() == TrustLevel.TRUSTED_HOST
+                || host.getRole() == Role.ADMIN)
+                ? EventStatus.PUBLISHED
+                : EventStatus.UNDER_REVIEW;
+
+        String slug = request.getSlug() != null && !request.getSlug().isBlank()
+                ? request.getSlug()
+                : slugGenerator.generateSlug(request.getTitle());
+
+        return Event.builder()
+                .host(host)
+                .title(request.getTitle().trim())
+                .description(request.getDescription() != null ? request.getDescription().trim() : null)
+                .location(request.getLocation().trim())
+                .startTime(request.getStartTime())
+                .endTime(request.getEndTime())
+                .maxCapacity(request.getMaxCapacity())
+                .currentRsvpCount(0)
+                .status(initialStatus)
+                .slug(slug)
+                .viewCount(0L)
+                .build();
+    }
+
+    /**
+     * PHASE 2: Create a draft event â€” bypasses trust level checks and date validation.
+     * Drafts are private to the host until published.
+     */
+    public Event createDraft(CreateEventRequest request, User host) {
+        String slug = request.getSlug() != null && !request.getSlug().isBlank()
+                ? request.getSlug()
+                : slugGenerator.generateSlug(request.getTitle());
+
+        return Event.builder()
+                .host(host)
+                .title(request.getTitle().trim())
+                .description(request.getDescription() != null ? request.getDescription().trim() : null)
+                .location(request.getLocation() != null ? request.getLocation().trim() : "TBD")
+                .startTime(request.getStartTime())
+                .endTime(request.getEndTime())
+                .maxCapacity(request.getMaxCapacity() != null ? request.getMaxCapacity() : 10)
+                .currentRsvpCount(0)
+                .status(EventStatus.DRAFT)
+                .slug(slug)
+                .viewCount(0L)
+                .build();
+    }
+
+    /* ==================== MQTT/AStA Official Events ==================== */
+
+    /**
+     * Creates an Event from an AStA MQTT message.
+     * Official events are always PUBLISHED and use a synthetic AStA host.
+     */
+    public Event createOfficialEvent(OfficialEventMessage message) {
+        LocalDateTime startLocal = LocalDateTime.parse(message.getTime(), ASTA_TIME_FORMAT);
+        Instant startTime = startLocal.atZone(ZoneId.of("Europe/Berlin")).toInstant();
+        Instant endTime = startTime.plusSeconds(7200); // Default 2-hour duration
+
+        User astaHost = getOrCreateAstaHost();
+
+        return Event.builder()
+                .host(astaHost)
+                .title(message.getActivityName().trim())
+                .description("Official AStA event: " + message.getActivityName())
+                .location(message.getVenue().trim())
+                .startTime(startTime)
+                .endTime(endTime)
+                .maxCapacity(100) // Default for official events
+                .currentRsvpCount(0)
+                .status(EventStatus.PUBLISHED) // Official events skip review
+                .slug(slugGenerator.generateSlug(message.getActivityName()))
+                .viewCount(0L)
+                .build();
+    }
+
+    private User getOrCreateAstaHost() {
+        return userRepository.findByUniversityEmail("asta@fh-dortmund.de")
+                .orElseGet(() -> {
+                    User newHost = User.builder()
+                            .universityEmail("asta@fh-dortmund.de")
+                            .displayName("AStA Official")
+                            .passwordHash("system-generated-no-login-allowed")
+                            .role(Role.ADMIN)
+                            .trustLevel(TrustLevel.TRUSTED_HOST)
+                            .isVerified(true)
+                            .build();
+                    return userRepository.save(newHost);
+                });
+    }
+}
+=== mapper\EventMapper.java ===
+package de.fhdortmund.mystudyapp.events.mapper;
+
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Component;
+
+import de.fhdortmund.mystudyapp.events.dto.CategoryDto;
+import de.fhdortmund.mystudyapp.events.dto.EventDto;
+import de.fhdortmund.mystudyapp.events.dto.EventMediaDto;
+import de.fhdortmund.mystudyapp.events.dto.HostDto;
+import de.fhdortmund.mystudyapp.events.model.Event;
+import de.fhdortmund.mystudyapp.events.model.EventMedia;
+import de.fhdortmund.mystudyapp.events.repository.EventRepository;
+import de.fhdortmund.mystudyapp.identity.mapper.UserMapper;
+import de.fhdortmund.mystudyapp.moderation.repository.ReviewRepository;
+import de.fhdortmund.mystudyapp.registration.model.Rsvp;
+import de.fhdortmund.mystudyapp.registration.repository.RsvpRepository;
+import lombok.RequiredArgsConstructor;
+
+@Component
+@RequiredArgsConstructor
+public class EventMapper {
+
+    private final UserMapper userMapper;
+    private final RsvpRepository rsvpRepository;
+
+    // PHASE 0: Injected to fetch host aggregates without N+1
+    private final EventRepository eventRepository;
+    private final ReviewRepository reviewRepository;
+
+    public EventDto toDto(Event event, UUID currentUserId) {
+        if (event == null) return null;
+
+        Set<CategoryDto> categories = event.getEventCategories().stream()
+                .map(ec -> CategoryDto.builder()
+                        .id(ec.getCategory().getId())
+                        .name(ec.getCategory().getName())
+                        .icon(ec.getCategory().getIcon())
+                        .color(ec.getCategory().getColor())
+                        .sortOrder(ec.getCategory().getSortOrder())
+                        .build())
+                .collect(Collectors.toSet());
+
+        boolean isHost = currentUserId != null && event.getHost() != null
+                && currentUserId.equals(event.getHost().getId());
+
+        Rsvp myRsvp = null;
+        if (currentUserId != null) {
+            myRsvp = rsvpRepository.findByEventIdAndUserId(event.getId(), currentUserId).orElse(null);
+        }
+
+        // PHASE 0 FIX: Build HostDto with embedded aggregates
+        HostDto hostDto = buildHostDto(event.getHost());
+
+        return EventDto.builder()
+                .id(event.getId())
+                .host(hostDto)
+                .title(event.getTitle())
+                .description(event.getDescription())
+                .location(event.getLocation())
+                .startTime(event.getStartTime())
+                .endTime(event.getEndTime())
+                .maxCapacity(event.getMaxCapacity())
+                .currentRsvpCount(event.getCurrentRsvpCount())
+                .status(event.getStatus())
+                .categories(categories)
+                .media(mapMedia(event))
+                .createdAt(event.getCreatedAt())
+                .isHost(isHost)
+                .deleted(event.getDeletedAt() != null) // âœ… ADDED
+                .myRsvpStatus(myRsvp != null ? myRsvp.getStatus() : null)
+                // PHASE 2 ADDITIONS
+                .slug(event.getSlug())
+                .viewCount(event.getViewCount())
+                .cancellationReason(event.getCancellationReason())
+                .build();
+    }
+
+    public EventDto toDto(Event event) {
+        return toDto(event, null);
+    }
+
+    /**
+     * PHASE 0: Builds a HostDto with trust-level aggregates.
+     * Uses existing repository queries so no new DB schema is required.
+     */
+    private HostDto buildHostDto(de.fhdortmund.mystudyapp.identity.model.User host) {
+        if (host == null) return null;
+
+        UUID hostId = host.getId();
+
+        Long completedEventsWithReviews = eventRepository.countCompletedReviewedEventsByHostId(hostId);
+        Double averageHostRating = reviewRepository.calculateAverageRatingByHostId(hostId);
+        Long totalHostReviews = reviewRepository.countTotalReviewsByHostId(hostId);
+
+        return HostDto.builder()
+                .id(hostId)
+                .displayName(host.getDisplayName())
+                .profileImageUrl(host.getProfileImageUrl())
+                .trustLevel(host.getTrustLevel())
+                .averageHostRating(averageHostRating != null ? averageHostRating : 0.0)
+                .totalHostReviews(totalHostReviews != null ? totalHostReviews : 0L)
+                .completedEventsWithReviews(completedEventsWithReviews != null ? completedEventsWithReviews : 0L)
+                .build();
+    }
+
+    private List<EventMediaDto> mapMedia(Event event) {
+        if (event.getEventMedia() == null) return Collections.emptyList();
+        return event.getEventMedia().stream()
+                .sorted(Comparator.comparing(EventMedia::getDisplayOrder, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(EventMedia::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .map(m -> EventMediaDto.builder()
+                        .id(m.getId())
+                        .url(m.getUrl())
+                        .mediaType(m.getMediaType())
+                        .filename(m.getFilename())
+                        .thumbnailUrl(m.getThumbnailUrl())
+                        .mediumUrl(m.getMediumUrl())
+                        .displayOrder(m.getDisplayOrder())
+                        .build())
+                .collect(Collectors.toList());
+    }
+}
+=== model\Category.java ===
+package de.fhdortmund.mystudyapp.events.model;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Entity
+@Table(name = "categories")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Category {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", updatable = false, nullable = false)
+    private Integer id;
+
+    @Column(name = "name", unique = true, nullable = false)
+    private String name;
+
+    /* ==================== PHASE 2 ADDITIONS ==================== */
+
+    /** Icon identifier (e.g., "music", "tech", "sports") â€” maps to frontend SVG */
+    @Column(name = "icon", length = 50)
+    private String icon;
+
+    /** Hex color for category badge background (e.g., "#FF5733") */
+    @Column(name = "color", length = 7)
+    private String color;
+
+    /** Sort order for category list display */
+    @Column(name = "sort_order", nullable = false)
+    @Builder.Default
+    private Integer sortOrder = 0;
+}
+=== model\Event.java ===
+package de.fhdortmund.mystudyapp.events.model;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+
+import org.hibernate.annotations.CreationTimestamp;
+
+import de.fhdortmund.mystudyapp.identity.model.User;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Entity
+@Table(name = "events")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Event {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "host_id", nullable = false)
+    private User host;
+
+    @Column(name = "title", nullable = false)
+    private String title;
+
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "location", nullable = false)
+    private String location;
+
+    @Column(name = "start_time", nullable = false)
+    private Instant startTime;
+
+    @Column(name = "end_time", nullable = false)
+    private Instant endTime;
+
+    @Column(name = "max_capacity", nullable = false)
+    private Integer maxCapacity;
+
+    /**
+     * Cached RSVP count â€” avoids a COUNT(*) on the rsvps table on every feed render.
+     * Must be incremented/decremented transactionally when an RSVP is created or cancelled.
+     */
+    @Column(name = "current_rsvp_count", nullable = false)
+    @Builder.Default
+    private Integer currentRsvpCount = 0;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    @Builder.Default
+    private EventStatus status = EventStatus.UNDER_REVIEW;
+
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<EventCategory> eventCategories = new HashSet<>();
+
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<EventMedia> eventMedia = new ArrayList<>();
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false, nullable = false)
+    private Instant createdAt;
+
+    // ----- Weather/Address fields (Phase 1) -----
+    @Column(name = "venue_name")
+    private String venueName;
+
+    @Column(name = "street")
+    private String street;
+
+    @Column(name = "city")
+    private String city;
+
+    @Column(name = "postal_code")
+    private String postalCode;
+
+    @Column(name = "country", nullable = false)
+    @Builder.Default
+    private String country = "DE";
+
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
+    @Column(name = "is_outdoor", nullable = false)
+    @Builder.Default
+    private boolean isOutdoor = false;
+
+    /* ==================== PHASE 2 ADDITIONS ==================== */
+
+    /** Human-readable URL slug (auto-generated from title) */
+    @Column(name = "slug", unique = true, length = 150)
+    private String slug;
+
+    /** Social proof counter â€” incremented on every GET /api/events/{id} */
+    @Column(name = "view_count", nullable = false)
+    @Builder.Default
+    private Long viewCount = 0L;
+
+    /** Soft delete timestamp â€” null = active, non-null = deleted */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    /** QR check-in code for host display (6-char alphanumeric) */
+    @Column(name = "check_in_code", length = 10)
+    private String checkInCode;
+
+    /** Reason provided when host cancels the event */
+    @Column(name = "cancellation_reason", columnDefinition = "TEXT")
+    private String cancellationReason;
+}
+=== model\EventCategory.java ===
+package de.fhdortmund.mystudyapp.events.model;
+
+import jakarta.persistence.EmbeddedId;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.MapsId;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Entity
+@Table(name = "event_categories")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class EventCategory {
+
+    @EmbeddedId
+    private EventCategoryId id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @MapsId("eventId")
+    @JoinColumn(name = "event_id", nullable = false)
+    private Event event;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @MapsId("categoryId")
+    @JoinColumn(name = "category_id", nullable = false)
+    private Category category;
+}
+=== model\EventCategoryId.java ===
+package de.fhdortmund.mystudyapp.events.model;
+
+import java.io.Serializable;
+import java.util.UUID;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Embeddable;
+import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Embeddable
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@EqualsAndHashCode
+public class EventCategoryId implements Serializable {
+
+    @Column(name = "event_id", nullable = false)
+    private UUID eventId;
+
+    @Column(name = "category_id", nullable = false)
+    private Integer categoryId;
+}
+=== model\EventMedia.java ===
+package de.fhdortmund.mystudyapp.events.model;
+
+import java.time.Instant;
+import java.util.UUID;
+
+import org.hibernate.annotations.CreationTimestamp;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Entity
+@Table(name = "event_media")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class EventMedia {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "event_id", nullable = false)
+    private Event event;
+
+    @Column(name = "url", nullable = false)
+    private String url;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "media_type", nullable = false)
+    private MediaType mediaType;
+
+    @Column(name = "filename")
+    private String filename;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false, nullable = false)
+    private Instant createdAt;
+
+    /* ==================== PHASE 2 ADDITIONS ==================== */
+
+    /** 400x300 thumbnail URL for event cards */
+    @Column(name = "thumbnail_url", length = 500)
+    private String thumbnailUrl;
+
+    /** 800x600 medium URL for detail views */
+    @Column(name = "medium_url", length = 500)
+    private String mediumUrl;
+
+    /** Display order for media carousel (0 = first/cover) */
+    @Column(name = "display_order", nullable = false)
+    @Builder.Default
+    private Integer displayOrder = 0;
+}
+=== model\EventStatus.java ===
+package de.fhdortmund.mystudyapp.events.model;
+
+public enum EventStatus {
+    DRAFT,          // PHASE 2: Unpublished, editable by host only
+    PUBLISHED,
+    UNDER_REVIEW,
+    CANCELLED,
+    COMPLETED
+}
+=== model\MediaType.java ===
+package de.fhdortmund.mystudyapp.events.model;
+
+public enum MediaType {
+    IMAGE,
+    VIDEO
+}
+=== repository\CategoryRepository.java ===
+package de.fhdortmund.mystudyapp.events.repository;
+
+import java.util.List;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import de.fhdortmund.mystudyapp.events.model.Category;
+
+@Repository
+public interface CategoryRepository extends JpaRepository<Category, Integer> {
+    boolean existsByName(String name);
+
+    /* ==================== PHASE 2 ADDITIONS ==================== */
+
+    List<Category> findTop5ByNameContainingIgnoreCase(String query, Pageable pageable);
+
+    List<Category> findAllByOrderBySortOrderAsc();
+}
+=== repository\EventMediaRepository.java ===
+package de.fhdortmund.mystudyapp.events.repository;
+
+import java.util.UUID;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import de.fhdortmund.mystudyapp.events.model.EventMedia;
+
+@Repository
+public interface EventMediaRepository extends JpaRepository<EventMedia, UUID> {
+}
+=== repository\EventRepository.java ===
+package de.fhdortmund.mystudyapp.events.repository;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import de.fhdortmund.mystudyapp.events.model.Event;
+import de.fhdortmund.mystudyapp.events.model.EventStatus;
+import jakarta.persistence.LockModeType;
+
+@Repository
+public interface EventRepository extends JpaRepository<Event, UUID> {
+
+    /* -------------------- Atomic Capacity Updates -------------------- */
+
+    @Modifying
+    @Query("UPDATE Event e SET e.currentRsvpCount = e.currentRsvpCount + 1 " +
+           "WHERE e.id = :eventId AND e.currentRsvpCount < e.maxCapacity AND e.status = 'PUBLISHED'")
+    int incrementRsvpCount(@Param("eventId") UUID eventId);
+
+    @Modifying
+    @Query("UPDATE Event e SET e.currentRsvpCount = e.currentRsvpCount - 1 " +
+           "WHERE e.id = :eventId AND e.currentRsvpCount > 0")
+    int decrementRsvpCount(@Param("eventId") UUID eventId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM Event e WHERE e.id = :eventId")
+    Optional<Event> findByIdLocked(@Param("eventId") UUID eventId);
+
+    /* -------------------- Trust / Review Queries -------------------- */
+
+    @Query("""
+            SELECT COUNT(DISTINCT e.id)
+            FROM Event e
+            JOIN Review r ON r.event.id = e.id
+            WHERE e.host.id = :userId
+              AND e.endTime < CURRENT_TIMESTAMP
+            """)
+    Long countCompletedReviewedEventsByHostId(@Param("userId") UUID userId);
+
+    @Query("SELECT COUNT(e) FROM Event e WHERE e.host.id = :userId AND e.endTime < CURRENT_TIMESTAMP")
+    Long countCompletedEventsByHostId(@Param("userId") UUID userId);
+
+    @Query("""
+            SELECT COUNT(e) > 0
+            FROM Event e
+            JOIN Review r ON r.event.id = e.id
+            WHERE e.host.id = :userId
+              AND e.endTime < CURRENT_TIMESTAMP
+            """)
+    Boolean hasCompletedReviewedEvents(@Param("userId") UUID userId);
+
+    @Query("SELECT e.id FROM Event e WHERE e.host.id = :userId AND e.endTime < CURRENT_TIMESTAMP")
+    List<UUID> findCompletedEventIdsByHostId(@Param("userId") UUID userId);
+
+    /* -------------------- Host Queries -------------------- */
+
+    List<Event> findByHostId(UUID hostId);
+
+    List<Event> findByHostIdAndStatus(UUID hostId, EventStatus status);
+
+    /* -------------------- Feed / Pagination Queries -------------------- */
+
+    Page<Event> findByStatus(EventStatus status, Pageable pageable);
+
+    Page<Event> findByHostId(UUID hostId, Pageable pageable);
+
+    /**
+     * Filtered feed query. All parameters are optional (NULL = ignored).
+     * DISTINCT is required because of the JOIN with eventCategories.
+     * PHASE 2: Excludes soft-deleted events (deletedAt IS NULL).
+     */
+    @Query("""
+            SELECT DISTINCT e FROM Event e
+            LEFT JOIN e.eventCategories ec
+            WHERE e.status = :status
+              AND e.deletedAt IS NULL
+              AND (cast(:categoryId as integer) IS NULL OR ec.category.id = :categoryId)
+              AND (cast(:dateFrom as timestamp) IS NULL OR e.startTime >= :dateFrom)
+              AND (cast(:dateTo as timestamp) IS NULL OR e.endTime <= :dateTo)
+              AND (cast(:location as string) IS NULL OR LOWER(e.location) LIKE LOWER(CONCAT('%', cast(:location as string), '%')))
+              AND (cast(:q as string) IS NULL OR LOWER(e.title) LIKE LOWER(CONCAT('%', cast(:q as string), '%'))
+                            OR LOWER(e.description) LIKE LOWER(CONCAT('%', cast(:q as string), '%')))
+            """)
+    Page<Event> findPublishedWithFilters(
+            @Param("status") EventStatus status,
+            @Param("categoryId") Integer categoryId,
+            @Param("dateFrom") Instant dateFrom,
+            @Param("dateTo") Instant dateTo,
+            @Param("location") String location,
+            @Param("q") String q,
+            Pageable pageable);
+
+    /* -------------------- Lifecycle / Scheduled Queries -------------------- */
+
+    List<Event> findByStatusAndEndTimeBefore(EventStatus status, Instant endTime);
+
+    /* ==================== PHASE 2 ADDITIONS ==================== */
+
+    /* -------------------- Slug -------------------- */
+
+    Optional<Event> findBySlug(String slug);
+
+    boolean existsBySlug(String slug);
+
+    /* -------------------- View Count -------------------- */
+
+    @Modifying
+    @Query("UPDATE Event e SET e.viewCount = e.viewCount + 1 WHERE e.id = :eventId")
+    int incrementViewCount(@Param("eventId") UUID eventId);
+
+    Page<Event> findByStatusOrderByViewCountDesc(EventStatus status, Pageable pageable);
+
+    /* -------------------- Soft Delete -------------------- */
+
+    @Query("SELECT e FROM Event e WHERE e.id = :eventId")
+    Optional<Event> findByIdIncludingDeleted(@Param("eventId") UUID eventId);
+
+    List<Event> findByHostIdAndDeletedAtIsNotNull(UUID hostId);
+
+    Page<Event> findByHostIdAndDeletedAtIsNull(UUID hostId, Pageable pageable);
+
+    /* -------------------- Dashboard Stats -------------------- */
+
+    long countByStatus(EventStatus status);
+
+    long countByStatusAndCreatedAtAfter(EventStatus status, Instant createdAt);
+
+    /* -------------------- Search Suggestions -------------------- */
+
+    @Query("SELECT e FROM Event e WHERE e.status = 'PUBLISHED' " +
+           "AND LOWER(e.title) LIKE LOWER(CONCAT('%', cast(:query as string), '%')) " +
+           "AND e.deletedAt IS NULL")
+    List<Event> findTop5ByTitleContainingIgnoreCaseAndStatusPublished(
+            @Param("query") String query, Pageable pageable);
+
+    @Query("SELECT DISTINCT e.location FROM Event e " +
+           "WHERE e.status = 'PUBLISHED' " +
+           "AND LOWER(e.location) LIKE LOWER(CONCAT('%', cast(:query as string), '%')) " +
+           "AND e.deletedAt IS NULL")
+    List<String> findTop5DistinctLocationsByLocationContainingIgnoreCase(
+            @Param("query") String query, Pageable pageable);
+}
+=== service\AdminDashboardService.java ===
+package de.fhdortmund.mystudyapp.events.service;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import de.fhdortmund.mystudyapp.events.dto.AdminDashboardDto;
+import de.fhdortmund.mystudyapp.events.dto.EventDto;
+import de.fhdortmund.mystudyapp.events.mapper.EventMapper;
+import de.fhdortmund.mystudyapp.events.model.EventStatus;
+import de.fhdortmund.mystudyapp.events.repository.EventRepository;
+import de.fhdortmund.mystudyapp.identity.repository.UserRepository;
+import de.fhdortmund.mystudyapp.moderation.dto.ReportDto;
+import de.fhdortmund.mystudyapp.moderation.mapper.ReportMapper;
+import de.fhdortmund.mystudyapp.moderation.model.ReportStatus;
+import de.fhdortmund.mystudyapp.moderation.repository.ReportRepository;
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class AdminDashboardService {
+
+    private final EventRepository eventRepository;
+    private final UserRepository userRepository;
+    private final ReportRepository reportRepository;
+    private final EventMapper eventMapper;
+    private final ReportMapper reportMapper;
+
+    @Transactional(readOnly = true)
+    public AdminDashboardDto getDashboardStats() {
+        Instant now = Instant.now();
+        Instant startOfToday = now.truncatedTo(ChronoUnit.DAYS);
+        Instant startOfWeek = now.minus(7, ChronoUnit.DAYS);
+
+        long pendingEventsCount = eventRepository.countByStatus(EventStatus.UNDER_REVIEW);
+        long openReportsCount = reportRepository.countByStatus(ReportStatus.OPEN);
+        long totalUsersCount = userRepository.count();
+        long newUsersToday = userRepository.countByCreatedAtAfter(startOfToday);
+        long eventsThisWeek = eventRepository.countByStatusAndCreatedAtAfter(EventStatus.PUBLISHED, startOfWeek);
+
+        Pageable recentPage = PageRequest.of(0, 5, Sort.by("createdAt").descending());
+
+        List<ReportDto> recentReports = reportRepository.findByStatus(ReportStatus.OPEN, recentPage)
+                .getContent().stream()
+                .map(reportMapper::toDto)
+                .collect(Collectors.toList());
+
+        List<EventDto> recentPendingEvents = eventRepository.findByStatus(EventStatus.UNDER_REVIEW, recentPage)
+                .getContent().stream()
+                .map(e -> eventMapper.toDto(e, null))
+                .collect(Collectors.toList());
+
+        return AdminDashboardDto.builder()
+                .pendingEventsCount(pendingEventsCount)
+                .openReportsCount(openReportsCount)
+                .totalUsersCount(totalUsersCount)
+                .newUsersToday(newUsersToday)
+                .eventsThisWeek(eventsThisWeek)
+                .recentReports(recentReports)
+                .recentPendingEvents(recentPendingEvents)
+                .build();
+    }
+}
+=== service\EventLifecycleService.java ===
+package de.fhdortmund.mystudyapp.events.service;
+
+import java.time.Instant;
+import java.util.List;
+
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import de.fhdortmund.mystudyapp.events.model.Event;
+import de.fhdortmund.mystudyapp.events.model.EventStatus;
+import de.fhdortmund.mystudyapp.events.repository.EventRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class EventLifecycleService {
+
+    private final EventRepository eventRepository;
+
+    /**
+     * Runs every hour at minute 0.
+     * Flips all PUBLISHED events whose endTime has passed to COMPLETED.
+     * This ensures the trust algorithm sees accurate "completed event" counts
+     * and provides a clean status for analytics/history.
+     */
+    @Scheduled(cron = "0 0 * * * *")
+    @Transactional
+    public void autoCompletePastEvents() {
+        Instant now = Instant.now();
+
+        List<Event> pastEvents = eventRepository.findByStatusAndEndTimeBefore(EventStatus.PUBLISHED, now);
+
+        if (pastEvents.isEmpty()) {
+            return;
+        }
+
+        for (Event event : pastEvents) {
+            event.setStatus(EventStatus.COMPLETED);
+        }
+
+        eventRepository.saveAll(pastEvents);
+        log.info("Auto-completed {} past events to COMPLETED status", pastEvents.size());
+    }
+}
+=== service\EventService.java ===
+package de.fhdortmund.mystudyapp.events.service;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import de.fhdortmund.mystudyapp.common.config.StorageProperties;
+import de.fhdortmund.mystudyapp.common.exception.ForbiddenActionException;
+import de.fhdortmund.mystudyapp.common.exception.ResourceNotFoundException;
+import de.fhdortmund.mystudyapp.common.response.PageResponse;
+import de.fhdortmund.mystudyapp.common.service.FileStorageService;
+import de.fhdortmund.mystudyapp.common.service.ThumbnailService;
+import de.fhdortmund.mystudyapp.events.dto.CreateEventRequest;
+import de.fhdortmund.mystudyapp.events.dto.EventDto;
+import de.fhdortmund.mystudyapp.events.factory.EventFactory;
+import de.fhdortmund.mystudyapp.events.mapper.EventMapper;
+import de.fhdortmund.mystudyapp.events.model.Category;
+import de.fhdortmund.mystudyapp.events.model.Event;
+import de.fhdortmund.mystudyapp.events.model.EventCategory;
+import de.fhdortmund.mystudyapp.events.model.EventCategoryId;
+import de.fhdortmund.mystudyapp.events.model.EventMedia;
+import de.fhdortmund.mystudyapp.events.model.EventStatus;
+import de.fhdortmund.mystudyapp.events.model.MediaType;
+import de.fhdortmund.mystudyapp.events.repository.CategoryRepository;
+import de.fhdortmund.mystudyapp.events.repository.EventRepository;
+import de.fhdortmund.mystudyapp.identity.model.User;
+import de.fhdortmund.mystudyapp.identity.repository.UserRepository;
+import de.fhdortmund.mystudyapp.moderation.repository.ReportRepository;
+import de.fhdortmund.mystudyapp.moderation.repository.ReviewRepository;
+import de.fhdortmund.mystudyapp.notification.model.NotificationType;
+import de.fhdortmund.mystudyapp.notification.publisher.NotificationEventPublisher;
+import de.fhdortmund.mystudyapp.registration.model.Rsvp;
+import de.fhdortmund.mystudyapp.registration.model.RsvpStatus;
+import de.fhdortmund.mystudyapp.registration.repository.RsvpRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class EventService {
+
+    private final EventRepository eventRepository;
+    private final CategoryRepository categoryRepository;
+    private final UserRepository userRepository;
+    private final EventFactory eventFactory;
+    private final EventMapper eventMapper;
+    private final FileStorageService fileStorageService;
+    private final ThumbnailService thumbnailService;
+    private final StorageProperties storageProperties;
+    private final RsvpRepository rsvpRepository;
+    private final ReviewRepository reviewRepository;
+    private final ReportRepository reportRepository;
+
+    // PHASE 1.3: Notify attendees of event cancellation
+    private final NotificationEventPublisher notificationPublisher;
+
+    /* ==================== CRUD ==================== */
+
+    @Transactional
+    public EventDto createEvent(CreateEventRequest request, String hostEmail) {
+        if (request.getEndTime().isBefore(request.getStartTime())) {
+            throw new IllegalArgumentException("End time must be after start time");
+        }
+        if (request.getStartTime().isBefore(Instant.now())) {
+            throw new IllegalArgumentException("Cannot create events in the past");
+        }
+
+        User host = userRepository.findByUniversityEmail(hostEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Event event = eventFactory.createEvent(request, host);
+        final Event savedEvent = eventRepository.save(event);
+
+        if (request.getCategoryIds() != null && !request.getCategoryIds().isEmpty()) {
+            Set<EventCategory> categories = request.getCategoryIds().stream()
+                    .map(catId -> {
+                        Category category = categoryRepository.findById(catId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Category", "id", catId));
+                        return EventCategory.builder()
+                                .id(new EventCategoryId(savedEvent.getId(), category.getId()))
+                                .event(savedEvent)
+                                .category(category)
+                                .build();
+                    })
+                    .collect(Collectors.toSet());
+            savedEvent.setEventCategories(categories);
+            eventRepository.save(savedEvent);
+        }
+
+        log.info("Event created: {} by {} with status {}", savedEvent.getId(), hostEmail, savedEvent.getStatus());
+        return eventMapper.toDto(savedEvent, host.getId());
+    }
+
+    /**
+     * PHASE 2: Create a draft event â€” partial validation, no date restrictions.
+     */
+    @Transactional
+    public EventDto createDraft(CreateEventRequest request, String hostEmail) {
+        User host = userRepository.findByUniversityEmail(hostEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Event draft = eventFactory.createDraft(request, host);
+        Event saved = eventRepository.save(draft);
+
+        if (request.getCategoryIds() != null && !request.getCategoryIds().isEmpty()) {
+            Set<EventCategory> categories = request.getCategoryIds().stream()
+                    .map(catId -> {
+                        Category category = categoryRepository.findById(catId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Category", "id", catId));
+                        return EventCategory.builder()
+                                .id(new EventCategoryId(saved.getId(), category.getId()))
+                                .event(saved)
+                                .category(category)
+                                .build();
+                    })
+                    .collect(Collectors.toSet());
+            saved.setEventCategories(categories);
+            eventRepository.save(saved);
+        }
+
+        log.info("Draft created: {} by {}", saved.getId(), hostEmail);
+        return eventMapper.toDto(saved, host.getId());
+    }
+
+    /**
+     * PHASE 2: Publish a draft event â€” validates and transitions to UNDER_REVIEW or PUBLISHED.
+     */
+    @Transactional
+    public EventDto publishDraft(UUID eventId, String userEmail) {
+        User user = userRepository.findByUniversityEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
+
+        if (!event.getHost().getId().equals(user.getId())) {
+            throw new ForbiddenActionException("publish", "Only the host can publish this draft");
+        }
+
+        if (event.getStatus() != EventStatus.DRAFT) {
+            throw new ForbiddenActionException("publish", "Only drafts can be published");
+        }
+
+        // Validate before publishing
+        if (event.getEndTime().isBefore(event.getStartTime())) {
+            throw new IllegalArgumentException("End time must be after start time");
+        }
+        if (event.getStartTime().isBefore(Instant.now())) {
+            throw new IllegalArgumentException("Cannot publish events in the past");
+        }
+
+        EventStatus newStatus = (user.getTrustLevel() == de.fhdortmund.mystudyapp.identity.model.TrustLevel.TRUSTED_HOST
+                || user.getRole() == de.fhdortmund.mystudyapp.identity.model.Role.ADMIN)
+                ? EventStatus.PUBLISHED
+                : EventStatus.UNDER_REVIEW;
+
+        event.setStatus(newStatus);
+        Event saved = eventRepository.save(event);
+
+        log.info("Draft {} published by {} with status {}", eventId, userEmail, newStatus);
+        return eventMapper.toDto(saved, user.getId());
+    }
+
+    @Transactional
+    public EventDto getEvent(UUID eventId, String currentUserEmail) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
+
+        // PHASE 2: Soft delete check â€” only host or admin can view deleted events
+        if (event.getDeletedAt() != null) {
+            UUID currentUserId = null;
+            if (currentUserEmail != null && !currentUserEmail.isBlank()) {
+                currentUserId = userRepository.findByUniversityEmail(currentUserEmail)
+                        .map(User::getId).orElse(null);
+            }
+            boolean isHost = currentUserId != null && event.getHost().getId().equals(currentUserId);
+            boolean isAdmin = currentUserEmail != null && 
+                    userRepository.findByUniversityEmail(currentUserEmail)
+                            .map(u -> u.getRole() == de.fhdortmund.mystudyapp.identity.model.Role.ADMIN)
+                            .orElse(false);
+            if (!isHost && !isAdmin) {
+                throw new ResourceNotFoundException("Event", "id", eventId);
+            }
+        }
+
+        // PHASE 2: Increment view count for published events
+        if (event.getStatus() == EventStatus.PUBLISHED && event.getDeletedAt() == null) {
+            eventRepository.incrementViewCount(eventId);
+        }
+
+        UUID currentUserId = null;
+        if (currentUserEmail != null && !currentUserEmail.isBlank()) {
+            currentUserId = userRepository.findByUniversityEmail(currentUserEmail)
+                    .map(User::getId)
+                    .orElse(null);
+        }
+
+        return eventMapper.toDto(event, currentUserId);
+    }
+
+    /**
+     * PHASE 2: Get event by slug (public or authenticated).
+     */
+    @Transactional
+    public EventDto getEventBySlug(String slug, String currentUserEmail) {
+        Event event = eventRepository.findBySlug(slug)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "slug", slug));
+
+        // Security: never expose non-published events publicly unless host/admin
+        if (event.getStatus() != EventStatus.PUBLISHED || event.getDeletedAt() != null) {
+            UUID currentUserId = null;
+            if (currentUserEmail != null && !currentUserEmail.isBlank()) {
+                currentUserId = userRepository.findByUniversityEmail(currentUserEmail)
+                        .map(User::getId).orElse(null);
+            }
+            boolean isHost = currentUserId != null && event.getHost().getId().equals(currentUserId);
+            boolean isAdmin = currentUserEmail != null &&
+                    userRepository.findByUniversityEmail(currentUserEmail)
+                            .map(u -> u.getRole() == de.fhdortmund.mystudyapp.identity.model.Role.ADMIN)
+                            .orElse(false);
+            if (!isHost && !isAdmin) {
+                throw new ResourceNotFoundException("Event", "slug", slug);
+            }
+        }
+
+        // Increment view count
+        if (event.getStatus() == EventStatus.PUBLISHED && event.getDeletedAt() == null) {
+            eventRepository.incrementViewCount(event.getId());
+        }
+
+        UUID currentUserId = null;
+        if (currentUserEmail != null && !currentUserEmail.isBlank()) {
+            currentUserId = userRepository.findByUniversityEmail(currentUserEmail)
+                    .map(User::getId)
+                    .orElse(null);
+        }
+
+        return eventMapper.toDto(event, currentUserId);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<EventDto> getPublishedEvents(
+            Integer categoryId,
+            Instant dateFrom,
+            Instant dateTo,
+            String location,
+            String q,
+            Pageable pageable,
+            String currentUserEmail) {
+
+        UUID currentUserId = null;
+        if (currentUserEmail != null && !currentUserEmail.isBlank()) {
+            currentUserId = userRepository.findByUniversityEmail(currentUserEmail)
+                    .map(User::getId)
+                    .orElse(null);
+        }
+
+        Page<Event> page = eventRepository.findPublishedWithFilters(
+                EventStatus.PUBLISHED, categoryId, dateFrom, dateTo, location, q, pageable);
+
+        return buildPageResponse(page, currentUserId);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<EventDto> getMyEvents(String email, Pageable pageable) {
+        User user = userRepository.findByUniversityEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Page<Event> page = eventRepository.findByHostIdAndDeletedAtIsNull(user.getId(), pageable);
+        return buildPageResponse(page, user.getId());
+    }
+
+    /**
+     * PHASE 2: Get my events including deleted (for trash bin).
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<EventDto> getMyEventsIncludingDeleted(String email, Pageable pageable) {
+        User user = userRepository.findByUniversityEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Page<Event> page = eventRepository.findByHostId(user.getId(), pageable);
+        return buildPageResponse(page, user.getId());
+    }
+
+    @Transactional
+    public EventDto updateEvent(UUID eventId, CreateEventRequest request, String userEmail) {
+        if (request.getEndTime().isBefore(request.getStartTime())) {
+            throw new IllegalArgumentException("End time must be after start time");
+        }
+        if (request.getStartTime().isBefore(Instant.now())) {
+            throw new IllegalArgumentException("Cannot move events into the past");
+        }
+
+        User user = userRepository.findByUniversityEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
+
+        if (!event.getHost().getId().equals(user.getId())) {
+            throw new ForbiddenActionException("update", "Only the host can update this event");
+        }
+
+        if (event.getStatus() == EventStatus.CANCELLED) {
+            throw new ForbiddenActionException("update", "Cannot update a cancelled event");
+        }
+
+        // PHASE 2: Cannot update soft-deleted events
+        if (event.getDeletedAt() != null) {
+            throw new ForbiddenActionException("update", "Cannot update a deleted event. Restore it first.");
+        }
+
+        if (request.getMaxCapacity() < event.getCurrentRsvpCount()) {
+            throw new ForbiddenActionException("update",
+                    "Cannot reduce capacity below current RSVP count (" + event.getCurrentRsvpCount() + ")");
+        }
+
+        event.setTitle(request.getTitle().trim());
+        event.setDescription(request.getDescription() != null ? request.getDescription().trim() : null);
+        event.setLocation(request.getLocation().trim());
+        event.setStartTime(request.getStartTime());
+        event.setEndTime(request.getEndTime());
+        event.setMaxCapacity(request.getMaxCapacity());
+
+        // PHASE 2: Update slug if provided
+        if (request.getSlug() != null && !request.getSlug().isBlank()) {
+            event.setSlug(request.getSlug());
+        }
+
+        // FIX: Properly update categories without breaking Hibernate's managed collection
+        if (request.getCategoryIds() != null) {
+            // Clear the existing managed collection
+            event.getEventCategories().clear();
+            // Build the new set of categories
+            Set<EventCategory> newCategories = request.getCategoryIds().stream()
+                    .map(catId -> {
+                        Category category = categoryRepository.findById(catId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Category", "id", catId));
+                        return EventCategory.builder()
+                                .id(new EventCategoryId(event.getId(), category.getId()))
+                                .event(event)
+                                .category(category)
+                                .build();
+                    })
+                    .collect(Collectors.toSet());
+            // Add all new categories to the managed collection (do NOT reassign)
+            event.getEventCategories().addAll(newCategories);
+        }
+
+        Event updated = eventRepository.save(event);
+        return eventMapper.toDto(updated, user.getId());
+    }
+
+    @Transactional
+    public EventDto cancelEvent(UUID eventId, String userEmail, String reason) {
+        User user = userRepository.findByUniversityEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
+
+        if (!event.getHost().getId().equals(user.getId())) {
+            throw new ForbiddenActionException("cancel", "Only the host can cancel this event");
+        }
+
+        event.setStatus(EventStatus.CANCELLED);
+        event.setCancellationReason(reason);  // PHASE 2
+        Event updated = eventRepository.save(event);
+
+        // PHASE 1.3: Notify all GOING and WAITLISTED attendees
+        List<Rsvp> affectedRsvps = rsvpRepository.findByEventId(eventId);
+        for (Rsvp rsvp : affectedRsvps) {
+            if (rsvp.getStatus() == RsvpStatus.GOING || rsvp.getStatus() == RsvpStatus.WAITLISTED) {
+                String message = reason != null && !reason.isBlank()
+                        ? "\"" + event.getTitle() + "\" has been cancelled by the host. Reason: " + reason
+                        : "\"" + event.getTitle() + "\" has been cancelled by the host.";
+
+                notificationPublisher.publishEventNotification(
+                        rsvp.getUser().getId(),
+                        NotificationType.EVENT_CANCELLED,
+                        "Event Cancelled",
+                        message,
+                        event.getId(),
+                        event.getTitle()
+                );
+            }
+        }
+
+        log.info("Event cancelled: {} by {}. Reason: {}. Notified {} attendees.",
+                eventId, userEmail, reason, affectedRsvps.size());
+        return eventMapper.toDto(updated, user.getId());
+    }
+
+    /**
+     * PHASE 2: Soft delete an event (moves to trash bin).
+     */
+    @Transactional
+    public void deleteEvent(UUID eventId, String userEmail) {
+        User user = userRepository.findByUniversityEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
+
+        boolean isHost = event.getHost().getId().equals(user.getId());
+        boolean isAdmin = user.getRole().name().equals("ADMIN");
+
+        if (!isHost && !isAdmin) {
+            throw new ForbiddenActionException("delete", "Only the host or an admin can delete this event");
+        }
+
+        // PHASE 2: Soft delete â€” set deletedAt instead of hard delete
+        event.setDeletedAt(Instant.now());
+        eventRepository.save(event);
+
+        log.info("Event soft-deleted: {} by {}", eventId, userEmail);
+    }
+
+    /**
+     * PHASE 2: Hard delete (permanent) â€” only for already soft-deleted events or admin.
+     */
+    @Transactional
+    public void permanentlyDeleteEvent(UUID eventId, String userEmail) {
+        User user = userRepository.findByUniversityEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Event event = eventRepository.findByIdIncludingDeleted(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
+
+        boolean isHost = event.getHost().getId().equals(user.getId());
+        boolean isAdmin = user.getRole().name().equals("ADMIN");
+
+        if (!isHost && !isAdmin) {
+            throw new ForbiddenActionException("delete", "Only the host or an admin can delete this event");
+        }
+
+        // PHASE 2: Only allow permanent delete if already soft-deleted (safety) or admin
+        if (event.getDeletedAt() == null && !isAdmin) {
+            throw new ForbiddenActionException("delete", "Event must be soft-deleted first before permanent deletion");
+        }
+
+        if (event.getEventMedia() != null) {
+            for (EventMedia media : event.getEventMedia()) {
+                fileStorageService.deleteEventMedia(media.getUrl());
+                // PHASE 2: Also delete thumbnails
+                if (media.getThumbnailUrl() != null) {
+                    fileStorageService.deleteEventMedia(media.getThumbnailUrl());
+                }
+                if (media.getMediumUrl() != null) {
+                    fileStorageService.deleteEventMedia(media.getMediumUrl());
+                }
+            }
+            event.getEventMedia().clear();
+        }
+
+        rsvpRepository.deleteAllByEventId(eventId);
+        reviewRepository.deleteAllByEventId(eventId);
+        reportRepository.deleteAllByEventId(eventId);
+
+        eventRepository.delete(event);
+        log.info("Event permanently deleted: {} by {}", eventId, userEmail);
+    }
+
+    /**
+     * PHASE 2: Restore a soft-deleted event.
+     */
+    @Transactional
+    public EventDto restoreEvent(UUID eventId, String userEmail) {
+        User user = userRepository.findByUniversityEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Event event = eventRepository.findByIdIncludingDeleted(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
+
+        if (!event.getHost().getId().equals(user.getId()) && !user.getRole().name().equals("ADMIN")) {
+            throw new ForbiddenActionException("restore", "Only the host or an admin can restore this event");
+        }
+
+        if (event.getDeletedAt() == null) {
+            throw new ForbiddenActionException("restore", "Event is not deleted");
+        }
+
+        event.setDeletedAt(null);
+        // If event was past its end time, set to COMPLETED instead of restoring as PUBLISHED
+        if (event.getEndTime().isBefore(Instant.now()) && event.getStatus() == EventStatus.PUBLISHED) {
+            event.setStatus(EventStatus.COMPLETED);
+        }
+
+        Event restored = eventRepository.save(event);
+        log.info("Event restored: {} by {}", eventId, userEmail);
+        return eventMapper.toDto(restored, user.getId());
+    }
+
+    /* ==================== Media ==================== */
+
+    @Transactional
+    public EventDto addMedia(UUID eventId, List<MultipartFile> images, List<MultipartFile> videos, String userEmail) {
+        User user = userRepository.findByUniversityEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
+
+        if (!event.getHost().getId().equals(user.getId())) {
+            throw new ForbiddenActionException("upload media", "Only the host can upload media");
+        }
+
+        if (event.getStatus() == EventStatus.CANCELLED) {
+            throw new ForbiddenActionException("upload media", "Cannot modify a cancelled event");
+        }
+
+        if (event.getDeletedAt() != null) {
+            throw new ForbiddenActionException("upload media", "Cannot modify a deleted event");
+        }
+
+        long currentImages = event.getEventMedia().stream()
+                .filter(m -> m.getMediaType() == MediaType.IMAGE).count();
+        long currentVideos = event.getEventMedia().stream()
+                .filter(m -> m.getMediaType() == MediaType.VIDEO).count();
+
+        if (images != null && !images.isEmpty()) {
+            if (currentImages + images.size() > storageProperties.getMaxImagesPerEvent()) {
+                throw new IllegalArgumentException(
+                        "Maximum " + storageProperties.getMaxImagesPerEvent() + " images allowed per event");
+            }
+            for (MultipartFile img : images) {
+                if (img != null && !img.isEmpty()) {
+                    String url = fileStorageService.storeEventImage(img, eventId);
+
+                    // PHASE 2: Generate thumbnails
+                    String[] thumbs = thumbnailService.generateThumbnails(
+                            java.nio.file.Paths.get(
+                                    storageProperties.getEventMediaLocation(),
+                                    "events", eventId.toString(), "images",
+                                    url.substring(url.lastIndexOf('/') + 1)
+                            ),
+                            url
+                    );
+
+                    event.getEventMedia().add(EventMedia.builder()
+                            .event(event)
+                            .url(url)
+                            .thumbnailUrl(thumbs[0])
+                            .mediumUrl(thumbs[1])
+                            .mediaType(MediaType.IMAGE)
+                            .filename(img.getOriginalFilename())
+                            .displayOrder((int) currentImages)  // PHASE 2: auto-increment order
+                            .build());
+                }
+            }
+        }
+
+        if (videos != null && !videos.isEmpty()) {
+            if (currentVideos + videos.size() > storageProperties.getMaxVideosPerEvent()) {
+                throw new IllegalArgumentException(
+                        "Maximum " + storageProperties.getMaxVideosPerEvent() + " videos allowed per event");
+            }
+            for (MultipartFile vid : videos) {
+                if (vid != null && !vid.isEmpty()) {
+                    String url = fileStorageService.storeEventVideo(vid, eventId);
+                    event.getEventMedia().add(EventMedia.builder()
+                            .event(event)
+                            .url(url)
+                            .mediaType(MediaType.VIDEO)
+                            .filename(vid.getOriginalFilename())
+                            .displayOrder((int) currentVideos)
+                            .build());
+                }
+            }
+        }
+
+        Event saved = eventRepository.save(event);
+        return eventMapper.toDto(saved, user.getId());
+    }
+
+    @Transactional
+    public EventDto removeMedia(UUID eventId, UUID mediaId, String userEmail) {
+        User user = userRepository.findByUniversityEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
+
+        if (!event.getHost().getId().equals(user.getId())) {
+            throw new ForbiddenActionException("delete media", "Only the host can remove media");
+        }
+
+        EventMedia media = event.getEventMedia().stream()
+                .filter(m -> m.getId().equals(mediaId))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Media not found"));
+
+        fileStorageService.deleteEventMedia(media.getUrl());
+        // PHASE 2: Delete thumbnails too
+        if (media.getThumbnailUrl() != null) {
+            fileStorageService.deleteEventMedia(media.getThumbnailUrl());
+        }
+        if (media.getMediumUrl() != null) {
+            fileStorageService.deleteEventMedia(media.getMediumUrl());
+        }
+        event.getEventMedia().remove(media);
+
+        Event saved = eventRepository.save(event);
+        return eventMapper.toDto(saved, user.getId());
+    }
+
+    /**
+     * PHASE 2: Reorder media for an event.
+     */
+    @Transactional
+    public EventDto reorderMedia(UUID eventId, List<UUID> mediaIds, String userEmail) {
+        User user = userRepository.findByUniversityEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
+
+        if (!event.getHost().getId().equals(user.getId())) {
+            throw new ForbiddenActionException("reorder media", "Only the host can reorder media");
+        }
+
+        if (mediaIds == null || mediaIds.isEmpty()) {
+            throw new IllegalArgumentException("Media ID list cannot be empty");
+        }
+
+        // Validate all IDs belong to this event
+        for (UUID mediaId : mediaIds) {
+            boolean exists = event.getEventMedia().stream()
+                    .anyMatch(m -> m.getId().equals(mediaId));
+            if (!exists) {
+                throw new ResourceNotFoundException("Media", "id", mediaId);
+            }
+        }
+
+        // Update displayOrder based on provided list index
+        for (int i = 0; i < mediaIds.size(); i++) {
+            UUID mediaId = mediaIds.get(i);
+            final int order = i;  // effectively final copy for the lambda
+            event.getEventMedia().stream()
+                    .filter(m -> m.getId().equals(mediaId))
+                    .findFirst()
+                    .ifPresent(m -> m.setDisplayOrder(order));
+        }
+
+        Event saved = eventRepository.save(event);
+        return eventMapper.toDto(saved, user.getId());
+    }
+
+    /**
+     * PHASE 2: Generate or regenerate check-in code for an event.
+     */
+    @Transactional
+    public String generateCheckInCode(UUID eventId, String userEmail) {
+        User user = userRepository.findByUniversityEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
+
+        if (!event.getHost().getId().equals(user.getId())) {
+            throw new ForbiddenActionException("check-in", "Only the host can generate check-in codes");
+        }
+
+        String code = java.util.UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        event.setCheckInCode(code);
+        eventRepository.save(event);
+
+        log.info("Check-in code generated for event {}: {}", eventId, code);
+        return code;
+    }
+
+    @Transactional
+    public EventDto saveOfficialEvent(Event event) {
+        Event saved = eventRepository.save(event);
+        log.info("Official event saved via MQTT: {} (Status: {})", saved.getId(), saved.getStatus());
+        return eventMapper.toDto(saved, null);
+    }
+
+    private PageResponse<EventDto> buildPageResponse(Page<Event> page, UUID currentUserId) {
+        return PageResponse.<EventDto>builder()
+                .content(page.getContent().stream()
+                        .map(e -> eventMapper.toDto(e, currentUserId))
+                        .collect(Collectors.toList()))
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .last(page.isLast())
+                .build();
+    }
+}
+=== service\EventSseService.java ===
+package de.fhdortmund.mystudyapp.events.service;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import lombok.extern.slf4j.Slf4j;
+
+/**
+ * PHASE 1.4: Server-Sent Events service for real-time event updates.
+ * Manages SseEmitter subscriptions per event and broadcasts updates
+ * when RSVP counts change.
+ */
+@Slf4j
+@Service
+public class EventSseService {
+
+    /** Emitter timeout: 5 minutes (clients should reconnect) */
+    private static final long EMITTER_TIMEOUT_MS = 300_000L;
+
+    /** Map: eventId â†’ list of active emitters */
+    private final Map<UUID, List<SseEmitter>> emitters = new ConcurrentHashMap<>();
+
+    /**
+     * Subscribe a client to real-time updates for a specific event.
+     * The client should reconnect before timeout expires.
+     */
+    public SseEmitter subscribe(UUID eventId) {
+        SseEmitter emitter = new SseEmitter(EMITTER_TIMEOUT_MS);
+
+        List<SseEmitter> eventEmitters = emitters.computeIfAbsent(
+                eventId, k -> new CopyOnWriteArrayList<>());
+        eventEmitters.add(emitter);
+
+        // Clean up on completion, timeout, or error
+        emitter.onCompletion(() -> removeEmitter(eventId, emitter));
+        emitter.onTimeout(() -> removeEmitter(eventId, emitter));
+        emitter.onError(e -> removeEmitter(eventId, emitter));
+
+        // Send initial connection confirmation
+        try {
+            emitter.send(SseEmitter.event()
+                    .name("connected")
+                    .data(Map.of("eventId", eventId, "status", "subscribed")));
+        } catch (IOException e) {
+            log.warn("Failed to send SSE connection confirmation for event {}", eventId);
+            removeEmitter(eventId, emitter);
+        }
+
+        log.debug("SSE subscription created for event {}. Active subscribers: {}",
+                eventId, eventEmitters.size());
+
+        return emitter;
+    }
+
+    /**
+     * Broadcast an RSVP count update to all subscribers of an event.
+     * Called by RsvpService and WaitlistService when counts change.
+     */
+    public void notifyRsvpUpdate(UUID eventId, int currentCount, int maxCapacity) {
+        List<SseEmitter> eventEmitters = emitters.get(eventId);
+        if (eventEmitters == null || eventEmitters.isEmpty()) {
+            return; // No subscribers, skip
+        }
+
+        Map<String, Object> payload = Map.of(
+                "eventId", eventId,
+                "currentCount", currentCount,
+                "maxCapacity", maxCapacity,
+                "spotsRemaining", Math.max(0, maxCapacity - currentCount),
+                "isFull", currentCount >= maxCapacity
+        );
+
+        for (SseEmitter emitter : eventEmitters) {
+            try {
+                emitter.send(SseEmitter.event()
+                        .name("rsvp-update")
+                        .data(payload));
+            } catch (IOException e) {
+                log.debug("SSE send failed for event {}, removing dead emitter", eventId);
+                removeEmitter(eventId, emitter);
+            }
+        }
+
+        log.debug("SSE rsvp-update sent to {} subscribers for event {}",
+                eventEmitters.size(), eventId);
+    }
+
+    /**
+     * Broadcast a waitlist promotion to all subscribers.
+     * Shows updated waitlist position for remaining waitlisted users.
+     */
+    public void notifyWaitlistUpdate(UUID eventId, int waitlistCount) {
+        List<SseEmitter> eventEmitters = emitters.get(eventId);
+        if (eventEmitters == null || eventEmitters.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> payload = Map.of(
+                "eventId", eventId,
+                "waitlistCount", waitlistCount,
+                "type", "waitlist-update"
+        );
+
+        for (SseEmitter emitter : eventEmitters) {
+            try {
+                emitter.send(SseEmitter.event()
+                        .name("waitlist-update")
+                        .data(payload));
+            } catch (IOException e) {
+                removeEmitter(eventId, emitter);
+            }
+        }
+    }
+
+    /**
+     * Broadcast that an event was cancelled.
+     * Forces all open event detail pages to refresh.
+     */
+    public void notifyEventCancelled(UUID eventId) {
+        List<SseEmitter> eventEmitters = emitters.get(eventId);
+        if (eventEmitters == null || eventEmitters.isEmpty()) {
+            return;
+        }
+
+        for (SseEmitter emitter : eventEmitters) {
+            try {
+                emitter.send(SseEmitter.event()
+                        .name("event-cancelled")
+                        .data(Map.of("eventId", eventId)));
+            } catch (IOException e) {
+                removeEmitter(eventId, emitter);
+            }
+        }
+
+        log.info("SSE event-cancelled broadcast to {} subscribers for event {}",
+                eventEmitters.size(), eventId);
+    }
+
+    private void removeEmitter(UUID eventId, SseEmitter emitter) {
+        List<SseEmitter> eventEmitters = emitters.get(eventId);
+        if (eventEmitters != null) {
+            eventEmitters.remove(emitter);
+            if (eventEmitters.isEmpty()) {
+                emitters.remove(eventId);
+            }
+        }
+    }
+}
+
+=== service\SearchService.java ===
+package de.fhdortmund.mystudyapp.events.service;
+
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import de.fhdortmund.mystudyapp.events.dto.SearchSuggestionDto;
+import de.fhdortmund.mystudyapp.events.repository.CategoryRepository;
+import de.fhdortmund.mystudyapp.events.repository.EventRepository;
+import de.fhdortmund.mystudyapp.identity.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class SearchService {
+
+    private static final int MAX_SUGGESTIONS_PER_TYPE = 5;
+    private static final DateTimeFormatter DATE_FORMAT = 
+            DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
+                    .withZone(ZoneId.of("Europe/Berlin"));
+
+    private final EventRepository eventRepository;
+    private final CategoryRepository categoryRepository;
+    private final UserRepository userRepository;
+
+    @Transactional(readOnly = true)
+    public List<SearchSuggestionDto> getSuggestions(String query, String type) {
+        String normalizedQuery = query.toLowerCase().trim();
+        if (normalizedQuery.isEmpty()) {
+            return List.of();
+        }
+
+        List<SearchSuggestionDto> results = new ArrayList<>();
+        Pageable limit = PageRequest.of(0, MAX_SUGGESTIONS_PER_TYPE);
+
+        if (type.equals("ALL") || type.equals("EVENT")) {
+            eventRepository.findTop5ByTitleContainingIgnoreCaseAndStatusPublished(normalizedQuery, limit)
+                    .forEach(event -> results.add(SearchSuggestionDto.builder()
+                            .type("EVENT")
+                            .value(event.getTitle())
+                            .id(event.getId().toString())
+                            .subtitle(DATE_FORMAT.format(event.getStartTime()) + " â€¢ " + event.getLocation())
+                            .build()));
+        }
+
+        if (type.equals("ALL") || type.equals("CATEGORY")) {
+            categoryRepository.findTop5ByNameContainingIgnoreCase(normalizedQuery, limit)
+                    .forEach(cat -> results.add(SearchSuggestionDto.builder()
+                            .type("CATEGORY")
+                            .value(cat.getName())
+                            .id(cat.getId().toString())
+                            .subtitle("Category")
+                            .build()));
+        }
+
+        if (type.equals("ALL") || type.equals("USER")) {
+            userRepository.findTop5ByDisplayNameContainingIgnoreCase(normalizedQuery, limit)
+                    .forEach(user -> results.add(SearchSuggestionDto.builder()
+                            .type("USER")
+                            .value(user.getDisplayName())
+                            .id(user.getId().toString())
+                            .subtitle(user.getUniversityEmail())
+                            .build()));
+        }
+
+        if (type.equals("ALL") || type.equals("LOCATION")) {
+            eventRepository.findTop5DistinctLocationsByLocationContainingIgnoreCase(normalizedQuery, limit)
+                    .forEach(loc -> results.add(SearchSuggestionDto.builder()
+                            .type("LOCATION")
+                            .value(loc)
+                            .id(loc)
+                            .subtitle("Location")
+                            .build()));
+        }
+
+        return results;
+    }
+}
+=== service\SlugGenerator.java ===
+package de.fhdortmund.mystudyapp.events.service;
+
+import java.text.Normalizer;
+import java.util.Locale;
+import java.util.regex.Pattern;
+
+import org.springframework.stereotype.Component;
+
+import de.fhdortmund.mystudyapp.events.repository.EventRepository;
+import lombok.RequiredArgsConstructor;
+
+@Component
+@RequiredArgsConstructor
+public class SlugGenerator {
+
+    private static final Pattern NON_LATIN = Pattern.compile("[^\\w-]");
+    private static final Pattern WHITESPACE = Pattern.compile("[\\s]");
+    private static final Pattern MULTIPLE_HYPHENS = Pattern.compile("-{2,}");
+
+    private final EventRepository eventRepository;
+
+    public String generateSlug(String title) {
+        String base = toSlug(title);
+        if (!eventRepository.existsBySlug(base)) {
+            return base;
+        }
+
+        // Deduplicate: append -1, -2, etc.
+        int counter = 1;
+        String candidate;
+        do {
+            candidate = base + "-" + counter;
+            counter++;
+        } while (eventRepository.existsBySlug(candidate));
+
+        return candidate;
+    }
+
+    private String toSlug(String input) {
+        if (input == null || input.isBlank()) {
+            return "event";
+        }
+        String noWhitespace = WHITESPACE.matcher(input).replaceAll("-");
+        String normalized = Normalizer.normalize(noWhitespace, Normalizer.Form.NFD);
+        String slug = NON_LATIN.matcher(normalized).replaceAll("");
+        slug = MULTIPLE_HYPHENS.matcher(slug).replaceAll("-");
+        return slug.toLowerCase(Locale.ENGLISH).replaceAll("^-+|-+$", "");
+    }
+}

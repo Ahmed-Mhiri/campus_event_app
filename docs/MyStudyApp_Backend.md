@@ -1,26 +1,34 @@
 # 🚀 MyStudyApp Backend — Ultra‑Detailed Technical Analysis
 
-This document provides an **exhaustive** examination of the MyStudyApp Java backend. Every class, method, annotation, and configuration property is analyzed to give you a complete understanding of the system’s inner workings, design decisions, and potential areas for improvement.
+This document provides an **exhaustive** examination of the MyStudyApp Java backend. Every class, method, annotation, and configuration property is analyzed to give you a complete understanding of the system's inner workings, design decisions, and potential areas for improvement.
 
 ---
 
 ## 1. Introduction & Architectural Overview
 
-MyStudyApp is a **campus event management platform** built with Spring Boot. It consists of two cooperating applications:
+MyStudyApp is a **campus event management platform** built with Spring Boot. It consists of **three** cooperating applications:
 
-- **`backend-main`** – the monolithic core handling all domain logic (events, users, RSVPs, reviews, reports, notifications, trust, and moderation).
-- **`backend-asta`** – a lightweight microservice that exposes a REST endpoint for the AStA (student council) to publish official events into the system via MQTT.
+- **`backend-main`** – the monolithic core handling all domain logic (events, users, RSVPs, reviews, reports, notifications, trust, moderation, and **weather**).
+- **`backend-weather`** – a standalone Spring Boot service that fetches weather forecasts from Open‑Meteo and publishes them via MQTT.
+- **`backend-asta`** – *(legacy, removed)* – a lightweight microservice that was used for AStA events.
 
-**Communication** between the two happens over an MQTT broker (Mosquitto). `backend-asta` publishes to `university/events`; `backend-main` subscribes. `backend-main` publishes critical alerts to `university/alerts`; `backend-asta` subscribes (currently only logging). This pub/sub pattern decouples the services, allowing independent scaling and deployment.
+**Communication** between the services happens over an MQTT broker (Mosquitto):
 
-The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring Data JPA**, **Spring Integration MQTT**, and **Flyway** for schema migrations. **PostgreSQL** is the production database, while **H2** is used for development/testing.
+| Source | Topic | Destination | Description |
+|--------|-------|-------------|-------------|
+| `backend-weather` | `campus/weather` | `backend-main` | Weather forecasts (every 6 hours) |
+| `backend-main` | `university/alerts` | *(future)* | Critical report alerts |
+
+**Note**: The `backend-asta` module has been **removed** and replaced by the more useful `backend-weather` service, which provides real‑world weather data for outdoor events.
+
+The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring Data JPA**, **Spring Integration MQTT**, and **Flyway** for schema migrations. **PostgreSQL** is the production database.
 
 **Key architectural principles**:
-- **Domain‑driven design** – each package (`events`, `identity`, `moderation`, `registration`, `notification`) represents a bounded context with its own entities, repositories, services, and controllers.
-- **Hexagonal architecture** – core domain logic is isolated; external dependencies (web, MQTT, email, file storage) are plugged in via adapters.
-- **Event‑driven** – internal Spring `ApplicationEvent`s are used to decouple modules (e.g., RSVP cancellation triggers waitlist promotion; review creation triggers trust promotion and notification).
-- **Security by design** – JWT authentication, role‑based access, email verification, rate limiting, and trust levels are integrated from the ground up.
-- **Atomicity & concurrency control** – critical operations (RSVP capacity, waitlist promotion) use atomic SQL updates and pessimistic locking to avoid race conditions.
+- **Domain‑driven design** – each package (`events`, `identity`, `moderation`, `registration`, `notification`, `weather`) represents a bounded context.
+- **Hexagonal architecture** – core domain logic is isolated; external dependencies (web, MQTT, email, file storage, weather APIs) are plugged in via adapters.
+- **Event‑driven** – internal Spring `ApplicationEvent`s decouple modules.
+- **Security by design** – JWT authentication, role‑based access, email verification, rate limiting, and trust levels.
+- **Atomicity & concurrency control** – critical operations use atomic SQL updates and pessimistic locking.
 
 ---
 
@@ -35,8 +43,7 @@ The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring 
 - Uses `setAllowedOriginPatterns()` rather than `setAllowedOrigins()` to support wildcards and credentials.  
 - Allows `http://localhost:5173` and `http://127.0.0.1:5173`, plus the configurable `${app.frontend-url}`.  
 - Exposes `Authorization` and `X-Refresh-Token` headers.  
-- `allowCredentials(true)` is crucial for JWT cookie‑less authentication (frontend sends `Authorization` header).  
-- **Potential issue**: In production, the frontend URL must be set explicitly; pattern matching could be too permissive.
+- `allowCredentials(true)` is crucial for JWT cookie‑less authentication.
 
 **`SecurityConfig.java`**  
 - Disables CSRF (stateless JWT).  
@@ -64,7 +71,7 @@ The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring 
 **`StorageConfig.java` & `StorageProperties.java`**  
 - `StorageProperties` holds configuration for upload directories and limits.  
 - `StorageConfig` adds resource handlers to serve files from absolute paths under `/uploads/avatars` and `/uploads/events`.  
-- The paths are resolved using `Paths.get(storageProperties.getAvatarLocation(), "avatars").toFile().getAbsolutePath()` – this ensures the directory is absolute, avoiding relative path issues in different working directories.  
+- The paths are resolved using `Paths.get(...).toFile().getAbsolutePath()` – ensures the directory is absolute, avoiding relative path issues in different working directories.  
 - **Good practice**: Uses `file:` prefix to serve from filesystem.
 
 **`DummyDataSeeder.java`** (dev profile)  
@@ -111,7 +118,7 @@ The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring 
 - `SecretKey` is generated with `Keys.hmacShaKeyFor()` – expects a key of sufficient length (>= 256 bits).  
 - Generates access and refresh tokens with claims: `subject` (email), `userId`, `role`, `trustLevel`, `type` (access/refresh).  
 - Uses `SignatureAlgorithm.HS256` (HMAC‑SHA256).  
-- **Important**: The secret is **not** Base64‑encoded, so the `.env` variable can be a plain string like `mySuperSecretKey!123` – but it must be at least 32 characters to meet the key length requirement (otherwise `Keys.hmacShaKeyFor` will throw).  
+- **Important**: The secret is **not** Base64‑encoded, so the `.env` variable can be a plain string like `mySuperSecretKey!123` – but it must be at least 32 characters to meet the key length requirement.  
 - Token expiration: access 15 minutes (configurable), refresh 7 days.  
 - `parseClaims()` uses `Jwts.parserBuilder().setSigningKey(key).build()` – modern JJWT API.  
 - `validateToken()` catches all exceptions and returns false (no specific exception propagation).  
@@ -164,6 +171,14 @@ The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring 
 - Returns an array `[thumbnailUrl, mediumUrl]` to be stored in `EventMedia`.  
 - On deletion, removes these derived files as well.
 
+**`GeocodingService.java`**  
+- Calls OpenStreetMap Nominatim API (`https://nominatim.openstreetmap.org/search`) to convert an address into latitude/longitude.  
+- Uses `RestTemplate` with a proper `User-Agent` header (required by Nominatim policy).  
+- Returns `double[] { lat, lon }` or `null` if geocoding fails.  
+- Integrated into `EventService.createEvent()`, `createDraft()`, and `updateEvent()` via the `populateAddressAndGeocode()` helper method.  
+- **Only** geocodes if `isOutdoor` is `true` and `city` is provided.  
+- **Fail‑safe**: If geocoding fails, the event is still saved with `latitude`/`longitude` set to `null`.
+
 ---
 
 ### 2.2 Events Module (`events`)
@@ -173,6 +188,15 @@ The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring 
 **`Event.java`**  
 - `@Entity` with `@Table(name = "events")`.  
 - Fields: `UUID id`, `User host` (LAZY), `String title`, `String description`, `String location`, `Instant startTime`, `Instant endTime`, `Integer maxCapacity`, `Integer currentRsvpCount` (denormalized), `EventStatus status`, `Set<EventCategory> eventCategories`, `List<EventMedia> eventMedia`, `Instant createdAt` (auto), `String slug` (unique), `Long viewCount` (default 0), `Instant deletedAt` (soft delete), `String checkInCode`, `String cancellationReason`.  
+- **NEW address & weather fields**:
+  - `String venueName` – human‑readable venue name.
+  - `String street` – street + house number.
+  - `String city` – city name.
+  - `String postalCode` – ZIP code.
+  - `String country` – default "DE".
+  - `Double latitude` – geocoded coordinate.
+  - `Double longitude` – geocoded coordinate.
+  - `boolean isOutdoor` – flag for outdoor events (default false).
 - **Builder** pattern used for construction.  
 - `currentRsvpCount` is updated atomically via `@Modifying` queries.  
 - `slug` is generated by `SlugGenerator` and must be unique.  
@@ -227,7 +251,7 @@ The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring 
 #### 2.2.3 Services (`events/service`)
 
 **`EventService.java`** – the main orchestrator (~500 lines).  
-- **Dependencies**: EventRepository, CategoryRepository, UserRepository, EventFactory, EventMapper, FileStorageService, ThumbnailService, StorageProperties, RsvpRepository, ReviewRepository, ReportRepository, NotificationEventPublisher.  
+- **Dependencies**: EventRepository, CategoryRepository, UserRepository, EventFactory, EventMapper, FileStorageService, ThumbnailService, StorageProperties, RsvpRepository, ReviewRepository, ReportRepository, NotificationEventPublisher, **GeocodingService**.
 
 **Key methods**:
 
@@ -235,13 +259,21 @@ The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring 
   1. Validate end > start, start > now.  
   2. Fetch host.  
   3. Call `eventFactory.createEvent(request, host)` – determines initial status based on trust.  
-  4. Save event.  
-  5. If categories provided, map each ID to a `Category` and create `EventCategory` objects; add to the set and save again (or use `save` after setting).  
-  6. Return `EventDto`.
+  4. **NEW**: Call `populateAddressAndGeocode(event, request)` – sets address fields and geocodes if outdoor.  
+  5. Save event.  
+  6. If categories provided, map each ID to a `Category` and create `EventCategory` objects; add to the set and save again.  
+  7. Return `EventDto`.
+
+- **`populateAddressAndGeocode(event, request)`** (new helper):  
+  - Sets `venueName`, `street`, `city`, `postalCode`, `country`, `isOutdoor` from request.  
+  - If `isOutdoor` is `true` and `city` is provided, calls `GeocodingService.getCoordinates()` and sets `latitude`/`longitude` (or leaves `null` on failure).
 
 - **`createDraft(...)`**:  
-  - Similar but uses `eventFactory.createDraft()` which sets status to `DRAFT` and skips date validation (tolerates past dates, `location` default "TBD", `maxCapacity` default 10).  
-  - Drafts are private.
+  - Similar but uses `eventFactory.createDraft()` which sets status to `DRAFT` and skips date validation.  
+  - **NEW**: Also calls `populateAddressAndGeocode()` so address fields are stored.
+
+- **`updateEvent(...)`**:  
+  - **NEW**: Calls `populateAddressAndGeocode()` to update address fields and re‑geocode if needed.
 
 - **`publishDraft(eventId, userEmail)`**:  
   - Ensure user is host.  
@@ -253,20 +285,12 @@ The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring 
 - **`getEvent(eventId, currentUserEmail)`**:  
   - Fetches event; if `deletedAt != null`, only host or admin can see it; otherwise throws 404.  
   - If status is PUBLISHED and not deleted, increments view count.  
-  - Builds `EventDto` with `currentUserId` to populate `isHost` and `myRsvpStatus` (by querying `RsvpRepository`).
+  - Builds `EventDto` with `currentUserId` to populate `isHost` and `myRsvpStatus` (by querying `RsvpRepository`).  
+  - **NEW**: Weather fields are automatically attached by `EventMapper` (see below).
 
 - **`getPublishedEvents(...)`**:  
   - Delegates to `eventRepository.findPublishedWithFilters` with status `PUBLISHED`.  
-  - Maps each to `EventDto` with current user’s RSVP status.
-
-- **`updateEvent(...)`**:  
-  - Re‑validates dates, ensures capacity not reduced below current RSVP count.  
-  - If status is CANCELLED or deleted, throws.  
-  - Updates fields, and **properly** updates categories:  
-    - `event.getEventCategories().clear();`  
-    - Then `event.getEventCategories().addAll(newCategories);`  
-    - This ensures Hibernate manages the collection correctly (avoids `TransientObjectException`).  
-  - **Important**: The use of `clear()` and `addAll()` on a managed collection is the correct way to update a `@OneToMany` with `orphanRemoval = true`.
+  - Maps each to `EventDto` with current user's RSVP status and **weather data**.
 
 - **`cancelEvent(...)`**:  
   - Sets status to `CANCELLED` and stores `cancellationReason`.  
@@ -338,7 +362,7 @@ The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring 
 - `GET /api/events/{id}` – event detail (authenticated).  
 - `GET /api/events/by-slug/{slug}` – detail by slug.  
 - `GET /api/events` – published events feed with filters (category, date range, location, search) and pagination.  
-- `GET /api/events/my-events` – user’s hosted events (excludes deleted by default).  
+- `GET /api/events/my-events` – user's hosted events (excludes deleted by default).  
 - `PUT /api/events/{id}` – update event (host only).  
 - `PATCH /api/events/{id}/cancel` – cancel with optional reason.  
 - `DELETE /api/events/{id}` – soft delete (move to trash).  
@@ -603,8 +627,8 @@ The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring 
   - Store cancellation reason.  
   - Notify host via `RSVP_CANCELLED` notification.  
 - **Check‑In** (self):  
-  - User provides the `checkInCode` (from host’s QR).  
-  - Validates against event’s stored code.  
+  - User provides the `checkInCode` (from host's QR).  
+  - Validates against event's stored code.  
   - RSVP must be GOING; transitions to ATTENDED.  
 - **Mark Attended** (host):  
   - Host can mark a specific RSVP as ATTENDED (no code needed).  
@@ -694,20 +718,12 @@ The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring 
 #### 2.7.1 Configuration (`MqttConfig.java`)
 
 - Defines a `DefaultMqttPahoClientFactory` with options: serverURIs, cleanSession, automaticReconnect.  
-- **Inbound**: `MqttPahoMessageDrivenChannelAdapter` subscribing to `university/events` (QoS 1). The adapter uses `clientId + "-events"` and a `DefaultPahoMessageConverter`. Output channel: `mqttEventInputChannel`.  
-- **Outbound**: `MqttPahoMessageHandler` for `university/alerts` (QoS 1). Uses `clientId + "-alert-publisher"`. Output channel: `mqttAlertOutboundChannel` (used by `AlertMqttGateway`).  
+- **Inbound (Events)**: `MqttPahoMessageDrivenChannelAdapter` subscribing to `university/events` (QoS 1). Uses `clientId + "-events"` and a `DefaultPahoMessageConverter`. Output channel: `mqttEventInputChannel`.  
+- **Inbound (Weather)**: `MqttPahoMessageDrivenChannelAdapter` subscribing to **`campus/weather`** (QoS 1). Uses `clientId + "-weather"`. Output channel: `weatherInputChannel`.  
+- **Outbound (Alerts)**: `MqttPahoMessageHandler` for `university/alerts` (QoS 1). Uses `clientId + "-alert-publisher"`. Output channel: `mqttAlertOutboundChannel`.  
 - Both use the same factory.
 
-#### 2.7.2 Adapter Pattern
-
-- **`EventMessageTarget`** interface – declares `Event adapt(OfficialEventMessage message)`.  
-- **`OfficialEventAdapter`** implements it:  
-  - Parses time from string `"yyyy-MM-dd HH:mm"` to `LocalDateTime`, then to `Instant` (Berlin timezone).  
-  - Finds or creates a synthetic AStA host (`asta@fh-dortmund.de`) – if not exists, creates a user with role ADMIN, trust TRUSTED_HOST, password placeholder, verified true.  
-  - Builds an `Event` with status PUBLISHED, capacity 100, default duration 2h.  
-  - **Note**: The `OfficialEventAdapter` is **not** used in the listener; instead, the listener uses `EventFactory.createOfficialEvent()`, which itself uses the adapter? Actually, `EventFactory` has its own `createOfficialEvent()` method that replicates the same logic, duplicating code. This could be refactored to use the adapter. But the listener does **not** inject the adapter; it uses the factory. This is a slight inconsistency.
-
-#### 2.7.3 Listener (`OfficialEventListener.java`)
+#### 2.7.2 Official Event Listener (`OfficialEventListener.java`)
 
 - `@ServiceActivator(inputChannel = "mqttEventInputChannel")` – method `handleIncomingEvent(@Payload String payload, @Header("mqtt_topic") String topic)`.  
 - Parses JSON to `OfficialEventMessage` using `ObjectMapper`.  
@@ -715,6 +731,14 @@ The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring 
 - Calls `eventService.saveOfficialEvent(event)` – persists.  
 - Logs success.  
 - **Potential issue**: If the message is malformed, it logs error but does not re‑throw; the message is consumed (acked) because the adapter uses auto‑acknowledgement. For QoS 1, this means the message is considered delivered even if processing fails. **Improvement**: Use a manual ack or handle errors by publishing to a dead‑letter queue.
+
+#### 2.7.3 Weather MQTT Listener (`WeatherMqttListener.java`) – **NEW**
+
+- `@ServiceActivator(inputChannel = "weatherInputChannel")` – method `handleWeatherMessage(@Payload String payload)`.  
+- Deserializes `WeatherPayload` containing a list of `CityForecast` objects.  
+- For each forecast, uses `CityWeatherRepository` to upsert (insert or update) the record based on `(city, date)` composite key.  
+- Sets `updatedAt` to current timestamp.  
+- **Important**: This listener is **stateless** – it simply stores the data; the risk engine reads from the database when events are retrieved.
 
 #### 2.7.4 Alert Publishing
 
@@ -724,7 +748,129 @@ The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring 
 
 ---
 
-### 2.8 Search Module (`events/controller/SearchController` + `events/service/SearchService`)
+### 2.8 Weather Module (`weather`) – **NEW**
+
+This module handles **ingestion and evaluation** of weather forecasts.
+
+#### 2.8.1 Domain Model
+
+**`CityWeather.java`**  
+- `@Entity` with composite `@IdClass(CityWeatherId.class)`.  
+- Fields:  
+  - `String city` (PK)  
+  - `LocalDate date` (PK)  
+  - `Integer conditionCode` – WMO weather code (e.g., 3 = partly cloudy, 61 = rain)  
+  - `Integer tempMax` – maximum temperature (°C)  
+  - `Integer rainProbability` – precipitation probability (0‑100)  
+  - `Integer windSpeed` – maximum wind speed (km/h)  
+  - `Instant updatedAt` – timestamp of last update  
+
+**`CityWeatherId.java`** – composite key class with `city` and `date`.
+
+**`WeatherRisk.java`** – enum: `GOOD`, `MODERATE`, `DANGER`, `CANCELLED`.
+
+#### 2.8.2 Repository
+
+**`CityWeatherRepository.java`**  
+- `findByCityAndDate(String city, LocalDate date)` – used by `EventMapper`.  
+- `findByCityAndDateBetween(String city, LocalDate start, LocalDate end)` – for future extension.
+
+#### 2.8.3 DTOs
+
+**`WeatherPayload.java`** – received from MQTT:  
+```java
+{
+  Instant timestamp;
+  List<CityForecast> forecasts;
+}
+```
+
+**`CityForecast.java`** – same structure as `CityWeather` but used for transport.
+
+**`WeatherAssessment.java`** – returned by the risk engine:
+```java
+{
+  WeatherRisk risk;
+  String recommendation;
+  List<String> warnings;
+  Integer temperature;
+  Integer rainProbability;
+  Integer windSpeed;
+  Integer conditionCode;
+  boolean available;
+}
+```
+
+#### 2.8.4 Service – `WeatherRiskEngine.java`
+
+- Evaluates a `CityWeather` object and returns a `WeatherAssessment`.  
+- **Threshold logic**:  
+  - **Thunderstorm** (WMO code 95‑99) → `CANCELLED`.  
+  - **Rain > 70%** → `DANGER`; **> 40%** → `MODERATE`.  
+  - **Wind > 60 km/h** → `DANGER`; **> 30 km/h** → `MODERATE`.  
+  - **Temperature > 35°C** → `DANGER`; **> 30°C** → `MODERATE`.  
+- Generates a human‑readable `recommendation` string.  
+- Collects `warnings` for each threshold exceeded.  
+- If `forecast == null`, returns `unavailable()` (risk GOOD, recommendation: *"Forecast not yet available (check 14 days in advance)."*)
+
+#### 2.8.5 Integration with EventMapper
+
+**`EventMapper.java`** – updated with new dependencies:
+```java
+private final CityWeatherRepository cityWeatherRepository;
+private final WeatherRiskEngine riskEngine;
+```
+
+In `toDto(Event, UUID)`, after building the `EventDto.EventDtoBuilder`, it adds a weather block:
+
+```java
+if (event.isOutdoor() && event.getCity() != null && event.getStartTime() != null) {
+    LocalDate eventDate = event.getStartTime().atZone(ZoneId.systemDefault()).toLocalDate();
+    LocalDate now = LocalDate.now();
+    if (!eventDate.isBefore(now) && eventDate.isBefore(now.plusDays(14))) {
+        cityWeatherRepository.findByCityAndDate(event.getCity(), eventDate)
+                .ifPresent(forecast -> {
+                    WeatherAssessment assessment = riskEngine.assess(forecast);
+                    dtoBuilder.weatherRisk(assessment.getRisk())
+                              .weatherRecommendation(assessment.getRecommendation())
+                              .weatherTemperature(forecast.getTempMax())
+                              .weatherRainProbability(forecast.getRainProbability())
+                              .weatherAvailable(assessment.isAvailable());
+                });
+    }
+}
+```
+
+**Key points**:
+- Weather is **only** evaluated for outdoor events (`isOutdoor == true`).  
+- Only if the event date is within the **next 14 days** (the forecast window).  
+- If no forecast exists, the fields remain `null` / `weatherAvailable = null`.  
+- The risk assessment is computed **on‑the‑fly** at read time, using the latest stored forecast.
+
+#### 2.8.6 DTO Updates
+
+**`CreateEventRequest.java`** – added address fields:
+```java
+private String venueName;
+private String street;
+private String city;
+private String postalCode;
+private String country = "DE";
+private boolean isOutdoor = false;
+```
+
+**`EventDto.java`** – added weather fields:
+```java
+private WeatherRisk weatherRisk;
+private String weatherRecommendation;
+private Integer weatherTemperature;
+private Integer weatherRainProbability;
+private Boolean weatherAvailable;
+```
+
+---
+
+### 2.9 Search Module (`events/controller/SearchController` + `events/service/SearchService`)
 
 - `GET /api/search/suggestions?q=<query>&type=ALL|EVENT|CATEGORY|USER|LOCATION`.  
 - `SearchService` queries up to 5 results per type using `findTop5By...` methods.  
@@ -732,27 +878,55 @@ The system is built with **Spring Boot 3.x**, **Spring Security 6.x**, **Spring 
 
 ---
 
-## 3. Backend‑Asta Detailed Analysis
+## 3. Backend‑Weather Detailed Analysis – **NEW**
 
-### 3.1 Controller (`AstaController.java`)
+This is a **standalone Spring Boot service** that acts as the external weather data provider.
 
-- `@RestController @RequestMapping("/api/asta")`.  
-- `POST /publish-event` – accepts `AstaEventRequest` (activityName, time, venue, organiser).  
-- Calls `AstaPublisherService.publishOfficialEvent(request)`.
+### 3.1 Main Application
 
-### 3.2 Service (`AstaPublisherService.java`)
+**`WeatherApplication.java`**  
+- `@SpringBootApplication` with `@EnableScheduling`.  
+- Starts the service on port `8082` (configurable).
 
-- Contains a nested `@MessagingGateway` interface `MqttGateway` with method `void sendToMqtt(String data)` (default request channel is `mqttOutboundChannel`).  
-- `publishOfficialEvent()` serializes request to JSON using `ObjectMapper` and sends via `mqttGateway.sendToMqtt(payload)`.  
-- Catches exceptions and rethrows as `RuntimeException`.
+### 3.2 Configuration
 
-### 3.3 MQTT Config (`MqttPublisherConfig.java`)
+**`CityList.java`**  
+- Defines a `Map<String, double[]>` with **100+ major German cities** and their coordinates (latitude, longitude).  
+- Includes all state capitals and major university cities (Dortmund, Berlin, Munich, Cologne, etc.).  
+- This list is used to fetch weather for each city individually.
 
-- Similar to `MqttConfig` but:  
-  - **Outbound**: `mqttOutboundHandler` publishes to `university/events` (QoS 1).  
-  - **Inbound**: `mqttAlertInboundAdapter` subscribes to `university/alerts`; the handler simply logs "Critical Alert Received".  
-  - Uses separate client IDs (`asta-publisher` for outbound, `asta-publisher-alerts` for inbound).  
-  - The `eventsTopic` and `alertsTopic` are configurable via `@Value`.
+**`MqttPublisherConfig.java`**  
+- Similar to the MQTT config in `backend-main`, but **only outbound**.  
+- Uses `clientId = "weather-publisher"`.  
+- Publish to topic **`campus/weather`** (configurable via `mqtt.topic.weather`).  
+- QoS 1, async.
+
+### 3.3 DTOs
+
+**`CityForecast.java`** – same structure as in `backend-main` (city, date, conditionCode, tempMax, rainProbability, windSpeed).  
+**`WeatherPayload.java`** – contains `timestamp` and a list of `CityForecast`.
+
+### 3.4 Service – `WeatherFetcher.java`
+
+- `@Scheduled(cron = "0 0 */6 * * *")` – runs every 6 hours.  
+- **For each city** in `CityList.CITIES`:  
+  - Builds a URL to Open‑Meteo API:  
+    ```
+    https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,windspeed_10m_max&timezone=Europe/Berlin&forecast_days=14
+    ```
+  - Fetches JSON using `RestTemplate`.  
+  - Parses `daily` object: extracts `time` array, `weathercode`, `temperature_2m_max`, `precipitation_probability_max`, `windspeed_10m_max`.  
+  - For each day (14 days), creates a `CityForecast` object.  
+  - Adds to the global list.  
+- After processing all cities, calls `MqttPublisher.publishForecasts(allForecasts)`.
+
+**Error handling**: If a city fails (e.g., network error), it logs the error and continues with the next city – ensuring partial updates.
+
+### 3.5 Service – `MqttPublisher.java`
+
+- Inner `@MessagingGateway` interface `WeatherMqttGateway` with method `void sendWeather(String payload)`.  
+- `publishForecasts()` serialises the `WeatherPayload` to JSON and sends it via the gateway.  
+- Logs the number of city‑days published.
 
 ---
 
@@ -786,7 +960,32 @@ The Flyway migrations are under `src/main/resources/db/migration/`.
 - **Notifications**: `id` UUID PK, `user_id` UUID REFERENCES users(id) ON DELETE CASCADE, `type` VARCHAR(50) NOT NULL, `title` VARCHAR(255) NOT NULL, `message` TEXT NOT NULL, `related_event_id` UUID, `related_user_id` UUID, `action_url` VARCHAR(255), `is_read` BOOLEAN NOT NULL DEFAULT FALSE, `created_at` TIMESTAMP NOT NULL, INDEX `idx_notif_user_read` (`user_id`, `is_read`), INDEX `idx_notif_created` (`created_at`).  
 - **User preferences**: `user_id` UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, `email_notifications` BOOLEAN NOT NULL DEFAULT TRUE, `push_notifications` BOOLEAN NOT NULL DEFAULT TRUE, `notify_on_rsvp_change` BOOLEAN NOT NULL DEFAULT TRUE, `notify_on_review` BOOLEAN NOT NULL DEFAULT TRUE, `timezone` VARCHAR(50) NOT NULL DEFAULT 'Europe/Berlin', `language` VARCHAR(10) NOT NULL DEFAULT 'de'.
 
-**All foreign keys have `ON DELETE CASCADE`**, which simplifies manual deletion but also means that if a user is deleted, all associated data is removed automatically.
+### V5__add_weather_fields.sql – **NEW**
+
+```sql
+ALTER TABLE events
+    ADD COLUMN venue_name VARCHAR(100),
+    ADD COLUMN street VARCHAR(200),
+    ADD COLUMN city VARCHAR(100),
+    ADD COLUMN postal_code VARCHAR(10),
+    ADD COLUMN country CHAR(2) DEFAULT 'DE',
+    ADD COLUMN latitude DOUBLE PRECISION,
+    ADD COLUMN longitude DOUBLE PRECISION,
+    ADD COLUMN is_outdoor BOOLEAN DEFAULT FALSE;
+
+CREATE TABLE city_weather (
+    city VARCHAR(100) NOT NULL,
+    date DATE NOT NULL,
+    condition_code INT,
+    temp_max INT,
+    rain_probability INT,
+    wind_speed INT,
+    updated_at TIMESTAMP,
+    PRIMARY KEY (city, date)
+);
+```
+
+**All foreign keys have `ON DELETE CASCADE`**, which simplifies manual deletion.
 
 ---
 
@@ -866,10 +1065,10 @@ When a cancellation occurs, `WaitlistService.promoteNextWaitlistedUser()` uses `
 
 ### 7.3 MQTT (Publish‑Subscribe)
 
-- Decouples `backend-main` and `backend-asta`.  
-- `backend-asta` publishes official events; `backend-main` consumes and creates events.  
-- `backend-main` publishes critical reports; `backend-asta` receives and logs (can be extended to email/Slack).  
-- **QoS 1** ensures at‑least‑once delivery, but the consumer may receive duplicates; the system is idempotent (saving event twice would create duplicate events, so there is a risk). **Improvement**: Use idempotency keys or check for duplicate events based on external reference.
+- Decouples `backend-main` and `backend-weather`.  
+- `backend-weather` publishes **weather forecasts** to `campus/weather`; `backend-main` consumes and updates `city_weather`.  
+- `backend-main` publishes **critical reports** to `university/alerts`; can be consumed by external systems (e.g., Slack, email).  
+- **QoS 1** ensures at‑least‑once delivery, but the consumer may receive duplicates. The weather listener is idempotent (upsert by PK), so duplicates are safe.
 
 ---
 
@@ -886,6 +1085,7 @@ When a cancellation occurs, `WaitlistService.promoteNextWaitlistedUser()` uses `
 | **Builder** | Lombok `@Builder` | Clean object construction for complex entities. |
 | **Singleton** | Spring beans | Managed by IoC container. |
 | **Template Method** | `JwtAuthFilter.doFilterInternal` | Framework hook. |
+| **Scheduled** | `@Scheduled` in `WeatherFetcher` and `EventLifecycleService` | Periodic background tasks. |
 
 ---
 
@@ -939,6 +1139,7 @@ The `GlobalExceptionHandler` ensures that all exceptions are caught and translat
 - **Lazy fetching** for relationships (`@ManyToOne(fetch = LAZY)`).  
 - **Indexes** on foreign keys and frequently queried columns (as per migrations).  
 - **Pessimistic locking** only where needed (waitlist promotion).  
+- **External weather fetching** is scheduled in `backend-weather` – does not block user requests.  
 
 ### 12.2 Potential Bottlenecks
 
@@ -946,7 +1147,8 @@ The `GlobalExceptionHandler` ensures that all exceptions are caught and translat
 - **File storage**: Serving images through Spring (`/uploads/**`) is not optimized for large media. **Improvement**: Use a CDN or a dedicated file server (e.g., AWS S3).  
 - **Database connection pool**: Default HikariCP settings are fine, but could be tuned.  
 - **MQTT message handling**: The `OfficialEventListener` processes messages synchronously; if many messages arrive, they could back up. **Improvement**: Use a `@Async` method or a queue.  
-- **SSE**: Each connection holds a thread; for many concurrent users, this could consume resources. **Improvement**: Use reactive programming or WebSocket with fewer threads.
+- **SSE**: Each connection holds a thread; for many concurrent users, this could consume resources. **Improvement**: Use reactive programming or WebSocket with fewer threads.  
+- **Weather risk evaluation**: The `EventMapper` calls `riskEngine.assess()` for each outdoor event on every request. This is lightweight (pure Java logic), but if there are many events, it could add overhead. The data is read from `city_weather`, which is indexed by `(city, date)`, so it's fast.
 
 ---
 
@@ -964,13 +1166,18 @@ The `GlobalExceptionHandler` ensures that all exceptions are caught and translat
 10. **Add API versioning** (e.g., `/api/v1/...`) for future changes.  
 11. **Use `@Async`** for sending emails and notifications to avoid blocking the main thread.  
 12. **Make the `checkInCode` generation more secure** (e.g., time‑based one‑time password) – currently a static code that changes only on regenerate.  
+13. **Add a REST endpoint in `backend-weather`** to manually trigger a weather fetch (useful for testing/demo).  
+14. **Store weather forecasts in a more granular way** – currently only maximum temperature; could store min, condition code, etc. (already stored).  
+15. **Add a weather icon mapping** based on WMO codes for frontend display.
 
 ---
 
 ## 14. Conclusion
 
-The MyStudyApp backend is a comprehensive, well‑architected system that demonstrates a solid understanding of Spring Boot, security, concurrency, and event‑driven design. It covers all necessary features for a campus event platform: user management with trust levels, event creation and moderation, RSVP with waitlist, reviews and reports, real‑time updates, and a dedicated integration with the student council via MQTT.
+The MyStudyApp backend is a comprehensive, well‑architected system that demonstrates a solid understanding of Spring Boot, security, concurrency, and event‑driven design. It covers all necessary features for a campus event platform: user management with trust levels, event creation and moderation, RSVP with waitlist, reviews and reports, real‑time updates, and **a fully integrated weather service**.
+
+The **weather module** adds significant real‑world value: hosts can mark events as outdoor, the system geocodes the address, and the risk engine evaluates forecasts to provide safety recommendations. This turns the app from a simple notice board into a **smart, context‑aware platform** that actively protects its users.
 
 The code is clean, follows modern Java practices, and uses design patterns appropriately. The separation of concerns is clear, and the use of Spring events and MQTT provides flexibility and decoupling.
 
-With the improvements suggested above, the system can scale further and become even more robust. The detailed analysis provided here should serve as a complete reference for developers and architects working on or extending the platform.
+With the improvements suggested above, the system can scale further and become even more robust. The detailed analysis provided here serves as a complete reference for developers and architects working on or extending the platform.

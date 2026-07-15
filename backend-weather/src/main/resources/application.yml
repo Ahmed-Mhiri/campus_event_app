@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: backend-weather
+
+mqtt:
+  broker-url: tcp://mosquitto:1883   # change to tcp://localhost:1883 for local testing
+  client-id: weather-publisher
+  topic:
+    weather: campus/weather

@@ -17,6 +17,7 @@ import de.fhdortmund.mystudyapp.common.exception.ForbiddenActionException;
 import de.fhdortmund.mystudyapp.common.exception.ResourceNotFoundException;
 import de.fhdortmund.mystudyapp.common.response.PageResponse;
 import de.fhdortmund.mystudyapp.common.service.FileStorageService;
+import de.fhdortmund.mystudyapp.common.service.GeocodingService;   // NEW IMPORT
 import de.fhdortmund.mystudyapp.common.service.ThumbnailService;
 import de.fhdortmund.mystudyapp.events.dto.CreateEventRequest;
 import de.fhdortmund.mystudyapp.events.dto.EventDto;
@@ -59,9 +60,10 @@ public class EventService {
     private final RsvpRepository rsvpRepository;
     private final ReviewRepository reviewRepository;
     private final ReportRepository reportRepository;
-
-    // PHASE 1.3: Notify attendees of event cancellation
     private final NotificationEventPublisher notificationPublisher;
+
+    // PHASE 2: Geocoding service
+    private final GeocodingService geocodingService;   // NEW
 
     /* ==================== CRUD ==================== */
 
@@ -78,6 +80,8 @@ public class EventService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Event event = eventFactory.createEvent(request, host);
+        populateAddressAndGeocode(event, request);   // NEW
+
         final Event savedEvent = eventRepository.save(event);
 
         if (request.getCategoryIds() != null && !request.getCategoryIds().isEmpty()) {
@@ -100,15 +104,14 @@ public class EventService {
         return eventMapper.toDto(savedEvent, host.getId());
     }
 
-    /**
-     * PHASE 2: Create a draft event — partial validation, no date restrictions.
-     */
     @Transactional
     public EventDto createDraft(CreateEventRequest request, String hostEmail) {
         User host = userRepository.findByUniversityEmail(hostEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Event draft = eventFactory.createDraft(request, host);
+        populateAddressAndGeocode(draft, request);   // NEW
+
         Event saved = eventRepository.save(draft);
 
         if (request.getCategoryIds() != null && !request.getCategoryIds().isEmpty()) {
@@ -131,9 +134,6 @@ public class EventService {
         return eventMapper.toDto(saved, host.getId());
     }
 
-    /**
-     * PHASE 2: Publish a draft event — validates and transitions to UNDER_REVIEW or PUBLISHED.
-     */
     @Transactional
     public EventDto publishDraft(UUID eventId, String userEmail) {
         User user = userRepository.findByUniversityEmail(userEmail)
@@ -150,7 +150,6 @@ public class EventService {
             throw new ForbiddenActionException("publish", "Only drafts can be published");
         }
 
-        // Validate before publishing
         if (event.getEndTime().isBefore(event.getStartTime())) {
             throw new IllegalArgumentException("End time must be after start time");
         }
@@ -175,7 +174,6 @@ public class EventService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("Event", "id", eventId));
 
-        // PHASE 2: Soft delete check — only host or admin can view deleted events
         if (event.getDeletedAt() != null) {
             UUID currentUserId = null;
             if (currentUserEmail != null && !currentUserEmail.isBlank()) {
@@ -192,7 +190,6 @@ public class EventService {
             }
         }
 
-        // PHASE 2: Increment view count for published events
         if (event.getStatus() == EventStatus.PUBLISHED && event.getDeletedAt() == null) {
             eventRepository.incrementViewCount(eventId);
         }
@@ -207,15 +204,11 @@ public class EventService {
         return eventMapper.toDto(event, currentUserId);
     }
 
-    /**
-     * PHASE 2: Get event by slug (public or authenticated).
-     */
     @Transactional
     public EventDto getEventBySlug(String slug, String currentUserEmail) {
         Event event = eventRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Event", "slug", slug));
 
-        // Security: never expose non-published events publicly unless host/admin
         if (event.getStatus() != EventStatus.PUBLISHED || event.getDeletedAt() != null) {
             UUID currentUserId = null;
             if (currentUserEmail != null && !currentUserEmail.isBlank()) {
@@ -232,7 +225,6 @@ public class EventService {
             }
         }
 
-        // Increment view count
         if (event.getStatus() == EventStatus.PUBLISHED && event.getDeletedAt() == null) {
             eventRepository.incrementViewCount(event.getId());
         }
@@ -278,9 +270,6 @@ public class EventService {
         return buildPageResponse(page, user.getId());
     }
 
-    /**
-     * PHASE 2: Get my events including deleted (for trash bin).
-     */
     @Transactional(readOnly = true)
     public PageResponse<EventDto> getMyEventsIncludingDeleted(String email, Pageable pageable) {
         User user = userRepository.findByUniversityEmail(email)
@@ -312,7 +301,6 @@ public class EventService {
             throw new ForbiddenActionException("update", "Cannot update a cancelled event");
         }
 
-        // PHASE 2: Cannot update soft-deleted events
         if (event.getDeletedAt() != null) {
             throw new ForbiddenActionException("update", "Cannot update a deleted event. Restore it first.");
         }
@@ -329,16 +317,15 @@ public class EventService {
         event.setEndTime(request.getEndTime());
         event.setMaxCapacity(request.getMaxCapacity());
 
-        // PHASE 2: Update slug if provided
         if (request.getSlug() != null && !request.getSlug().isBlank()) {
             event.setSlug(request.getSlug());
         }
 
-        // FIX: Properly update categories without breaking Hibernate's managed collection
+        // NEW: Set address fields and geocode on update
+        populateAddressAndGeocode(event, request);
+
         if (request.getCategoryIds() != null) {
-            // Clear the existing managed collection
             event.getEventCategories().clear();
-            // Build the new set of categories
             Set<EventCategory> newCategories = request.getCategoryIds().stream()
                     .map(catId -> {
                         Category category = categoryRepository.findById(catId)
@@ -350,7 +337,6 @@ public class EventService {
                                 .build();
                     })
                     .collect(Collectors.toSet());
-            // Add all new categories to the managed collection (do NOT reassign)
             event.getEventCategories().addAll(newCategories);
         }
 
@@ -371,10 +357,9 @@ public class EventService {
         }
 
         event.setStatus(EventStatus.CANCELLED);
-        event.setCancellationReason(reason);  // PHASE 2
+        event.setCancellationReason(reason);
         Event updated = eventRepository.save(event);
 
-        // PHASE 1.3: Notify all GOING and WAITLISTED attendees
         List<Rsvp> affectedRsvps = rsvpRepository.findByEventId(eventId);
         for (Rsvp rsvp : affectedRsvps) {
             if (rsvp.getStatus() == RsvpStatus.GOING || rsvp.getStatus() == RsvpStatus.WAITLISTED) {
@@ -398,9 +383,6 @@ public class EventService {
         return eventMapper.toDto(updated, user.getId());
     }
 
-    /**
-     * PHASE 2: Soft delete an event (moves to trash bin).
-     */
     @Transactional
     public void deleteEvent(UUID eventId, String userEmail) {
         User user = userRepository.findByUniversityEmail(userEmail)
@@ -416,16 +398,12 @@ public class EventService {
             throw new ForbiddenActionException("delete", "Only the host or an admin can delete this event");
         }
 
-        // PHASE 2: Soft delete — set deletedAt instead of hard delete
         event.setDeletedAt(Instant.now());
         eventRepository.save(event);
 
         log.info("Event soft-deleted: {} by {}", eventId, userEmail);
     }
 
-    /**
-     * PHASE 2: Hard delete (permanent) — only for already soft-deleted events or admin.
-     */
     @Transactional
     public void permanentlyDeleteEvent(UUID eventId, String userEmail) {
         User user = userRepository.findByUniversityEmail(userEmail)
@@ -441,7 +419,6 @@ public class EventService {
             throw new ForbiddenActionException("delete", "Only the host or an admin can delete this event");
         }
 
-        // PHASE 2: Only allow permanent delete if already soft-deleted (safety) or admin
         if (event.getDeletedAt() == null && !isAdmin) {
             throw new ForbiddenActionException("delete", "Event must be soft-deleted first before permanent deletion");
         }
@@ -449,7 +426,6 @@ public class EventService {
         if (event.getEventMedia() != null) {
             for (EventMedia media : event.getEventMedia()) {
                 fileStorageService.deleteEventMedia(media.getUrl());
-                // PHASE 2: Also delete thumbnails
                 if (media.getThumbnailUrl() != null) {
                     fileStorageService.deleteEventMedia(media.getThumbnailUrl());
                 }
@@ -468,9 +444,6 @@ public class EventService {
         log.info("Event permanently deleted: {} by {}", eventId, userEmail);
     }
 
-    /**
-     * PHASE 2: Restore a soft-deleted event.
-     */
     @Transactional
     public EventDto restoreEvent(UUID eventId, String userEmail) {
         User user = userRepository.findByUniversityEmail(userEmail)
@@ -488,7 +461,6 @@ public class EventService {
         }
 
         event.setDeletedAt(null);
-        // If event was past its end time, set to COMPLETED instead of restoring as PUBLISHED
         if (event.getEndTime().isBefore(Instant.now()) && event.getStatus() == EventStatus.PUBLISHED) {
             event.setStatus(EventStatus.COMPLETED);
         }
@@ -534,7 +506,6 @@ public class EventService {
                 if (img != null && !img.isEmpty()) {
                     String url = fileStorageService.storeEventImage(img, eventId);
 
-                    // PHASE 2: Generate thumbnails
                     String[] thumbs = thumbnailService.generateThumbnails(
                             java.nio.file.Paths.get(
                                     storageProperties.getEventMediaLocation(),
@@ -551,7 +522,7 @@ public class EventService {
                             .mediumUrl(thumbs[1])
                             .mediaType(MediaType.IMAGE)
                             .filename(img.getOriginalFilename())
-                            .displayOrder((int) currentImages)  // PHASE 2: auto-increment order
+                            .displayOrder((int) currentImages)
                             .build());
                 }
             }
@@ -598,7 +569,6 @@ public class EventService {
                 .orElseThrow(() -> new ResourceNotFoundException("Media not found"));
 
         fileStorageService.deleteEventMedia(media.getUrl());
-        // PHASE 2: Delete thumbnails too
         if (media.getThumbnailUrl() != null) {
             fileStorageService.deleteEventMedia(media.getThumbnailUrl());
         }
@@ -611,9 +581,6 @@ public class EventService {
         return eventMapper.toDto(saved, user.getId());
     }
 
-    /**
-     * PHASE 2: Reorder media for an event.
-     */
     @Transactional
     public EventDto reorderMedia(UUID eventId, List<UUID> mediaIds, String userEmail) {
         User user = userRepository.findByUniversityEmail(userEmail)
@@ -630,7 +597,6 @@ public class EventService {
             throw new IllegalArgumentException("Media ID list cannot be empty");
         }
 
-        // Validate all IDs belong to this event
         for (UUID mediaId : mediaIds) {
             boolean exists = event.getEventMedia().stream()
                     .anyMatch(m -> m.getId().equals(mediaId));
@@ -639,10 +605,9 @@ public class EventService {
             }
         }
 
-        // Update displayOrder based on provided list index
         for (int i = 0; i < mediaIds.size(); i++) {
             UUID mediaId = mediaIds.get(i);
-            final int order = i;  // effectively final copy for the lambda
+            final int order = i;
             event.getEventMedia().stream()
                     .filter(m -> m.getId().equals(mediaId))
                     .findFirst()
@@ -653,9 +618,6 @@ public class EventService {
         return eventMapper.toDto(saved, user.getId());
     }
 
-    /**
-     * PHASE 2: Generate or regenerate check-in code for an event.
-     */
     @Transactional
     public String generateCheckInCode(UUID eventId, String userEmail) {
         User user = userRepository.findByUniversityEmail(userEmail)
@@ -694,5 +656,47 @@ public class EventService {
                 .totalPages(page.getTotalPages())
                 .last(page.isLast())
                 .build();
+    }
+
+    /* ==================== NEW HELPER ==================== */
+
+    /**
+     * Populates the address fields of an Event from the request and triggers
+     * geocoding if the event is outdoor and a city is provided.
+     */
+    private void populateAddressAndGeocode(Event event, CreateEventRequest request) {
+        if (event == null || request == null) {
+            return;
+        }
+
+        // Set all address fields from request
+        event.setVenueName(request.getVenueName());
+        event.setStreet(request.getStreet());
+        event.setCity(request.getCity());
+        event.setPostalCode(request.getPostalCode());
+        event.setCountry(request.getCountry() != null ? request.getCountry() : "DE");
+        event.setOutdoor(request.isOutdoor());
+
+        // Geocode only if outdoor and city is provided
+        if (request.isOutdoor() && request.getCity() != null && !request.getCity().isBlank()) {
+            double[] coords = geocodingService.getCoordinates(
+                    request.getStreet(),
+                    request.getCity(),
+                    request.getPostalCode(),
+                    request.getCountry()
+            );
+            if (coords != null) {
+                event.setLatitude(coords[0]);
+                event.setLongitude(coords[1]);
+                log.debug("Geocoded event '{}' → lat={}, lon={}", event.getTitle(), coords[0], coords[1]);
+            } else {
+                log.warn("Could not geocode address for outdoor event: {}", event.getTitle());
+                // Keep existing coordinates if any; or clear? We'll leave them.
+            }
+        } else {
+            // If not outdoor or no city, clear any previous coordinates to avoid stale data
+            event.setLatitude(null);
+            event.setLongitude(null);
+        }
     }
 }

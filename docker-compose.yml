@@ -37,9 +37,9 @@ services:
       - ./backend-main:/app
       - ~/.m2:/root/.m2
     env_file:
-      - .env                         # ← Add this line
+      - .env
     environment:
-      - SPRING_PROFILES_ACTIVE=dev   # Keep this if you want to enforce dev profile
+      - SPRING_PROFILES_ACTIVE=dev
     command: mvn spring-boot:run
     ports:
       - "8081:8081"
@@ -50,17 +50,18 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  backend-asta:
+  backend-weather:
     build:
-      context: ./backend-asta
+      context: ./backend-weather
       dockerfile: Dockerfile.dev
     volumes:
-      - ./backend-asta:/app
+      - ./backend-weather:/app
       - ~/.m2:/root/.m2
     env_file:
-      - .env                         # ← Add this line
+      - .env
     environment:
       - SPRING_PROFILES_ACTIVE=dev
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
     command: mvn spring-boot:run
     ports:
       - "8082:8082"

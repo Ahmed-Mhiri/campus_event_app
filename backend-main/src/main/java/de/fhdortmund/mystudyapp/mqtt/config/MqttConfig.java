@@ -29,6 +29,10 @@ public class MqttConfig {
     @Value("${mqtt.topic.alerts:university/alerts}")
     private String alertsTopic;
 
+    // NEW: Topic for weather forecasts (published by backend-weather)
+    @Value("${mqtt.topic.weather:campus/weather}")
+    private String weatherTopic;
+
     /* ==================== Shared Client Factory ==================== */
 
     @Bean
@@ -42,7 +46,7 @@ public class MqttConfig {
         return factory;
     }
 
-    /* ==================== INBOUND: Receive Official Events ==================== */
+    /* ==================== INBOUND: Official Events ==================== */
 
     @Bean
     public MessageChannel mqttEventInputChannel() {
@@ -63,7 +67,28 @@ public class MqttConfig {
         return adapter;
     }
 
-    /* ==================== OUTBOUND: Publish Alerts ==================== */
+    /* ==================== INBOUND: Weather Forecasts (NEW) ==================== */
+
+    @Bean
+    public MessageChannel weatherInputChannel() {
+        return new DirectChannel();
+    }
+
+    @Bean
+    public MessageProducer weatherInboundAdapter() {
+        MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter(
+                clientId + "-weather",
+                mqttClientFactory(),
+                weatherTopic
+        );
+        adapter.setCompletionTimeout(5000);
+        adapter.setConverter(new DefaultPahoMessageConverter());
+        adapter.setQos(1);
+        adapter.setOutputChannel(weatherInputChannel());
+        return adapter;
+    }
+
+    /* ==================== OUTBOUND: Alerts ==================== */
 
     @Bean
     public MessageChannel mqttAlertOutboundChannel() {

@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import de.fhdortmund.mystudyapp.events.model.EventStatus;
 import de.fhdortmund.mystudyapp.registration.model.RsvpStatus;
+import de.fhdortmund.mystudyapp.weather.model.WeatherRisk;
 import lombok.Builder;
 import lombok.Data;
 
@@ -27,20 +28,28 @@ public class EventDto {
     private List<EventMediaDto> media;
     private Instant createdAt;
     private boolean isHost;
-    /** Current user's RSVP status for this event (null if not registered) */
     private RsvpStatus myRsvpStatus;
+    private boolean deleted;
 
-    /** Indicates if the event is in the soft‑deleted state (Trash Bin) */
-    private boolean deleted; // ✅ ADDED
-
-    /* ==================== PHASE 2 ADDITIONS ==================== */
-
-    /** Human-readable URL slug for sharing */
+    // Phase 2 – slug, views, cancellation
     private String slug;
-
-    /** Social proof: how many times this event was viewed */
     private Long viewCount;
-
-    /** Reason provided when host cancelled the event */
     private String cancellationReason;
+
+    // Phase 2 – address & geodata
+    private String venueName;
+    private String street;
+    private String city;
+    private String postalCode;
+    private String country;
+    private Double latitude;
+    private Double longitude;
+    private boolean isOutdoor;
+
+    // ==================== PHASE 5 – WEATHER FIELDS ====================
+    private WeatherRisk weatherRisk;
+    private String weatherRecommendation;
+    private Integer weatherTemperature;
+    private Integer weatherRainProbability;
+    private Boolean weatherAvailable;   // true if forecast exists
 }

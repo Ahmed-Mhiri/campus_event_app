@@ -90,6 +90,33 @@ public class Event {
     @Column(name = "created_at", updatable = false, nullable = false)
     private Instant createdAt;
 
+    // ----- Weather/Address fields (Phase 1) -----
+    @Column(name = "venue_name")
+    private String venueName;
+
+    @Column(name = "street")
+    private String street;
+
+    @Column(name = "city")
+    private String city;
+
+    @Column(name = "postal_code")
+    private String postalCode;
+
+    @Column(name = "country", nullable = false)
+    @Builder.Default
+    private String country = "DE";
+
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
+    @Column(name = "is_outdoor", nullable = false)
+    @Builder.Default
+    private boolean isOutdoor = false;
+
     /* ==================== PHASE 2 ADDITIONS ==================== */
 
     /** Human-readable URL slug (auto-generated from title) */
